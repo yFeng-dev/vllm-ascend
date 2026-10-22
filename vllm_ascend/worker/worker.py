@@ -28,10 +28,15 @@ from typing import Any
 import torch
 import torch.nn as nn
 import torch_npu
+import vllm_ascend.envs as envs_ascend
 from torch_npu.op_plugin.atb._atb_ops import _register_atb_extensions
 from torch_npu.profiler import dynamic_profile as dp
 from vllm.config import CUDAGraphMode, VllmConfig, set_current_vllm_config
-from vllm.distributed import ensure_model_parallel_initialized, get_pcp_group, init_distributed_environment
+from vllm.distributed import (
+    ensure_model_parallel_initialized,
+    get_pcp_group,
+    init_distributed_environment,
+)
 from vllm.distributed.ec_transfer import (
     ensure_ec_transfer_initialized,
     ensure_ec_transfer_shutdown,
@@ -44,7 +49,9 @@ from vllm.distributed.kv_transfer import (
     get_kv_transfer_group,
     has_kv_transfer_group,
 )
-from vllm.distributed.kv_transfer.kv_connector.v1.base import KVConnectorHandshakeMetadata
+from vllm.distributed.kv_transfer.kv_connector.v1.base import (
+    KVConnectorHandshakeMetadata,
+)
 from vllm.distributed.parallel_state import Handle, get_pp_group, get_tp_group
 from vllm.logger import logger
 from vllm.lora.request import LoRARequest
@@ -64,7 +71,12 @@ from vllm.v1.kv_cache_interface import (
     SlidingWindowSpec,
     UniformTypeKVCacheSpecs,
 )
-from vllm.v1.outputs import EMPTY_MODEL_RUNNER_OUTPUT, AsyncModelRunnerOutput, DraftTokenIds, ModelRunnerOutput
+from vllm.v1.outputs import (
+    EMPTY_MODEL_RUNNER_OUTPUT,
+    AsyncModelRunnerOutput,
+    DraftTokenIds,
+    ModelRunnerOutput,
+)
 from vllm.v1.utils import report_usage_stats
 from vllm.v1.worker.gpu_worker import AsyncIntermediateTensors
 from vllm.v1.worker.startup_plan import (
@@ -73,8 +85,6 @@ from vllm.v1.worker.startup_plan import (
 )
 from vllm.v1.worker.worker_base import CompilationTimes, WorkerBase
 from vllm.v1.worker.workspace import init_workspace_manager
-
-import vllm_ascend.envs as envs_ascend
 from vllm_ascend.ascend_config import KVPPConfig, get_ascend_config, init_ascend_config
 from vllm_ascend.batch_invariant import init_batch_invariance
 from vllm_ascend.core.kv_cache_placement import (
@@ -85,12 +95,18 @@ from vllm_ascend.core.kv_cache_placement import (
 from vllm_ascend.core.profiling_chunk_predictor import (
     _attach_profiling_chunk_execution_time,
 )
+from vllm_ascend.core.six_region_kv_cache_layout import build_six_region_kv_cache_layout
 from vllm_ascend.cpu_binding import bind_cpus
-from vllm_ascend.device.hardware_profile import HardwareCapability, get_current_hardware_profile
+from vllm_ascend.device.hardware_profile import (
+    HardwareCapability,
+    get_current_hardware_profile,
+)
 from vllm_ascend.device_allocator.camem import CaMemAllocator
 from vllm_ascend.device_allocator.sleep_mem_optimized import SleepWakeupManager
 from vllm_ascend.distributed.eplb.eplb_state import AscendEplbState
-from vllm_ascend.distributed.kv_transfer.kv_p2p.sfa_pd_rd2h.dspark_context import uses_sfa_dspark_kv_transfer
+from vllm_ascend.distributed.kv_transfer.kv_p2p.sfa_pd_rd2h.dspark_context import (
+    uses_sfa_dspark_kv_transfer,
+)
 from vllm_ascend.distributed.kv_transfer.kv_pool.ascend_store.layerwise_cache_layout import (
     build_layerwise_cache_layout,
     build_layerwise_reuse_layout,
@@ -553,13 +569,14 @@ class NPUWorker(WorkerBase):
             logger.warning("npu model runner v2 is in developing, some features doesn't work for now.")
             if self.vllm_config.is_mm_encoder_only:
                 from vllm.v1.worker.mm_encoder_model_runner import MMEncoderModelRunner
-
                 from vllm_ascend.worker.v2.utils import torch_cuda_wrapper
 
                 with torch_cuda_wrapper():
                     self.model_runner = MMEncoderModelRunner(self.vllm_config, self.device)
             else:
-                from vllm_ascend.worker.v2.model_runner import NPUModelRunner as NPUModelRunnerV2
+                from vllm_ascend.worker.v2.model_runner import (
+                    NPUModelRunner as NPUModelRunnerV2,
+                )
 
                 self.model_runner = NPUModelRunnerV2(self.vllm_config, self.device)
         else:
@@ -733,6 +750,12 @@ class NPUWorker(WorkerBase):
         kv_cache_groups = get_kv_cache_groups(self.vllm_config, kv_cache_spec)
         if not kv_cache_groups:
             return available_memory
+        if getattr(getattr(self, "model_runner", None), "supports_six_region_kv_backing", False) is True:
+            if build_six_region_kv_cache_layout(kv_cache_groups, num_blocks=1) is not None:
+                # The six-region planner prices one physical backing, and V2
+                # consumes its aliases directly. Scaling by the sum of logical
+                # group pages would charge the shared storage a second time.
+                return available_memory
         # vLLM #51718 removed the DSV4-specific packed planner. Ascend restores
         # that shared-tuple layout in patch_kv_cache_utils, so DSV4 already fits
         # all groups in one physical budget and must not take the generic
@@ -740,7 +763,9 @@ class NPUWorker(WorkerBase):
         for group in kv_cache_groups:
             group_spec = group.kv_cache_spec
             specs = (
-                group_spec.kv_cache_specs.values() if isinstance(group_spec, UniformTypeKVCacheSpecs) else (group_spec,)
+                group_spec.kv_cache_specs.values()
+                if isinstance(group_spec, UniformTypeKVCacheSpecs)
+                else (group_spec,)
             )
             if any(getattr(spec, "model_version", None) in {"deepseek_v4", "deepseek_v41"} for spec in specs):
                 return available_memory
@@ -874,7 +899,9 @@ class NPUWorker(WorkerBase):
 
         assert isinstance(output, IntermediateTensors)
         parallel_config = self.vllm_config.parallel_config
-        assert parallel_config.distributed_executor_backend != ("external_launcher") and not get_pp_group().is_last_rank
+        assert (
+            parallel_config.distributed_executor_backend != ("external_launcher") and not get_pp_group().is_last_rank
+        )
         if enable_sp():
             all_gather_group = None
         else:

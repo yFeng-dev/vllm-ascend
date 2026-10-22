@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any
 
 import msgspec
 import zmq
-from vllm import envs
 from vllm.distributed.kv_transfer.kv_connector.utils import BlockIds
 from vllm.distributed.kv_transfer.kv_connector.v1.base import (
     KVConnectorHandshakeMetadata,
@@ -23,6 +22,7 @@ from vllm.v1.core.sched.output import SchedulerOutput
 from vllm.v1.outputs import KVConnectorOutput
 from vllm.v1.request import RequestStatus
 
+from vllm import envs
 from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.base_scheduler import (
     MooncakeBaseConnectorScheduler,
 )
@@ -33,6 +33,7 @@ from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.metadata import (
     MooncakeTPTransferMetadata,
     MooncakeTransferMetadata,
     MooncakeTransferMetadataGroups,
+    get_block_layout,
 )
 from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.utils import (
     ensure_zmq_recv,
@@ -232,6 +233,7 @@ class MooncakeSchedulerSendingThread(threading.Thread):
                             worker_metadata.block_lens[local_layer_index],
                             worker_metadata.block_shapes[local_layer_index],
                             worker_metadata.block_size_scales[local_layer_index],
+                            get_block_layout(worker_metadata, local_layer_index),
                         )
                         previous_signature = layer_signature_by_name.get(layer_name)
                         if previous_signature is not None and previous_signature != layer_signature:
@@ -242,6 +244,7 @@ class MooncakeSchedulerSendingThread(threading.Thread):
                                 "block_lens",
                                 "block_shapes",
                                 "block_size_scales",
+                                "block_layouts",
                             )
                             mismatched_layer_fields = [
                                 field_name
@@ -264,6 +267,7 @@ class MooncakeSchedulerSendingThread(threading.Thread):
             block_lens: list[list[int]] = []
             block_shapes: list[list[tuple[int, ...]]] = []
             block_size_scales: list[list[int]] = []
+            block_layouts: list[str] = []
             for layer_name in layer_names:
                 worker_metadata, local_layer_index = layer_source_by_name[layer_name]
                 layer_block_sizes.append(worker_metadata.layer_block_sizes[local_layer_index])
@@ -272,6 +276,7 @@ class MooncakeSchedulerSendingThread(threading.Thread):
                 block_lens.append(worker_metadata.block_lens[local_layer_index])
                 block_shapes.append(worker_metadata.block_shapes[local_layer_index])
                 block_size_scales.append(worker_metadata.block_size_scales[local_layer_index])
+                block_layouts.append(get_block_layout(worker_metadata, local_layer_index))
 
             layer_index_by_name = {layer_name: layer_index for layer_index, layer_name in enumerate(layer_names)}
             metadata_by_pcp_rank: dict[int, MooncakePCPTransferMetadata] = {}
@@ -307,6 +312,7 @@ class MooncakeSchedulerSendingThread(threading.Thread):
                 block_shapes=block_shapes,
                 block_size_scales=block_size_scales,
                 metadata_by_pcp_rank=metadata_by_pcp_rank,
+                block_layouts=block_layouts,
             )
         return merged
 

@@ -22,10 +22,12 @@ from vllm.v1.kv_cache_interface import (
 )
 from vllm.v1.worker.gpu import attn_utils as upstream_attn_utils
 from vllm.v1.worker.utils import AttentionGroup
-
 from vllm_ascend.attention import dsa_attn_kv_plan, dsa_v1
 from vllm_ascend.attention import utils as attention_utils
-from vllm_ascend.attention.attention_c8_mxfp import mxfp_cache_spec, mxfp_paged_cache_views
+from vllm_ascend.attention.attention_c8_mxfp import (
+    mxfp_cache_spec,
+    mxfp_paged_cache_views,
+)
 from vllm_ascend.attention.attention_v1 import (
     AscendAttentionBackend,
     AscendAttentionBackendImpl,
@@ -358,7 +360,9 @@ def test_hybrid_attention_layout_preserves_padding(monkeypatch):
         kv_cache_tensors=[],
         kv_cache_groups=[KVCacheGroupSpec(layer_names=[name], kv_cache_spec=spec)],
     )
-    group = SimpleNamespace(kv_cache_group_id=0, kv_cache_spec=spec, backend=AscendAttentionBackend, layer_names=[name])
+    group = SimpleNamespace(
+        kv_cache_group_id=0, kv_cache_spec=spec, backend=AscendAttentionBackend, layer_names=[name]
+    )
     vllm_config = SimpleNamespace(
         model_config=SimpleNamespace(hf_config=SimpleNamespace()),
         cache_config=SimpleNamespace(cache_dtype="auto"),
@@ -2131,7 +2135,9 @@ def test_dsa_builder_receives_full_graph_mode(capture, full_graph):
 
 @pytest.mark.parametrize("cache_only_backend", [False, True])
 @pytest.mark.parametrize("for_cudagraph_capture", [False, True])
-def test_build_attn_metadata_propagates_prefill_and_pcp_context(monkeypatch, for_cudagraph_capture, cache_only_backend):
+def test_build_attn_metadata_propagates_prefill_and_pcp_context(
+    monkeypatch, for_cudagraph_capture, cache_only_backend
+):
     sfa_builder_cls = type("UnrelatedSFABuilder", (), {}) if cache_only_backend else _PrefillStateBuilder
     monkeypatch.setattr(attn_utils, "AscendSFAMetadataBuilder", sfa_builder_cls)
     builder = _CaptureStateBuilder() if for_cudagraph_capture else _PrefillStateBuilder()
@@ -2175,11 +2181,15 @@ def test_build_attn_metadata_propagates_prefill_and_pcp_context(monkeypatch, for
 @pytest.mark.parametrize("packed", [False, True], ids=["mla", "sfa-c8"])
 def test_main_entry_allocates_and_reshapes_kvpp_views(monkeypatch, packed):
     from vllm.v1.worker.gpu import model_runner as upstream_model_runner
-
-    from tests.ut.kvpp_utils import assert_attention_cache_views, make_attention_cache_case, make_cache_config
     from vllm_ascend.core import kv_cache_placement
     from vllm_ascend.patch.worker.patch_v2 import patch_attn_utils
     from vllm_ascend.worker import kvpp_cache
+
+    from tests.ut.kvpp_utils import (
+        assert_attention_cache_views,
+        make_attention_cache_case,
+        make_cache_config,
+    )
 
     config, specs, layers = make_attention_cache_case(packed)
     monkeypatch.setattr(attn_utils, "get_current_vllm_config", lambda: config)
@@ -2554,6 +2564,8 @@ def test_mrv2_binding_wraps_only_v41_slots():
     v41_layer = DeepseekV41CacheLayer(vllm_config, "model.layers.0.self_attn.attn", object())
     v41_indexer = DeepseekV41CacheLayer(vllm_config, "model.layers.2.self_attn.indexer.k_cache", object())
     other_layer = SimpleNamespace(kv_cache=None)
+    # Match upstream's layer binding hook; the old fixture predates #53781.
+    other_layer.bind_kv_cache = lambda cache: setattr(other_layer, "kv_cache", cache)
     kv_caches = {
         # V4.1 reshape output: one slot tensor per layer.
         "model.layers.0.self_attn.attn": torch.zeros(4, 2),

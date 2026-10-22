@@ -51,7 +51,6 @@ from vllm.v1.worker.gpu.model_runner import (
     GPUModelRunner,
 )
 from vllm.v1.worker.gpu.model_states.mamba_hybrid import MambaHybridModelState
-
 from vllm_ascend.ascend_config import get_ascend_config
 from vllm_ascend.ascend_forward_context import (
     MoECommType,
@@ -141,6 +140,7 @@ class NPUModelRunner(GPUModelRunner):
     # backing allocation. Ascend MRV2 preserves that allocation and exposes
     # backend-specific views; MLA may use a page-strided fused/component view.
     supports_standardized_shared_kv_backing = True
+    supports_six_region_kv_backing = True
 
     execute_model_state: ExecuteModelState | None
     kv_connector: KVConnector
@@ -1417,7 +1417,9 @@ class NPUModelRunner(GPUModelRunner):
                 num_reqs_padded += 1
             return query_start_loc_np, num_reqs_padded
 
-        cumulative_padding = np.arange(1, num_padding_reqs + 1, dtype=np.int32) * num_padding_tokens // num_padding_reqs
+        cumulative_padding = (
+            np.arange(1, num_padding_reqs + 1, dtype=np.int32) * num_padding_tokens // num_padding_reqs
+        )
         query_start_loc_np[num_reqs + 1 : num_reqs_padded + 1] = last_loc + cumulative_padding
         return query_start_loc_np, num_reqs_padded
 

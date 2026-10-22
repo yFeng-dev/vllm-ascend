@@ -56,7 +56,6 @@ from vllm.v1.kv_cache_interface import (
 )
 from vllm.v1.worker.gpu.model_states.interface import ModelSpecificAttnMetadata
 from vllm.v1.worker.utils import AttentionGroup
-
 from vllm_ascend.ascend_config import KVPPConfig, get_ascend_config
 from vllm_ascend.attention.attention_c8_mxfp import (
     mxfp_cache_spec,
@@ -86,7 +85,10 @@ from vllm_ascend.core.kv_cache_interface import (
     get_storage_block_size,
     supports_component_major_mla_pd,
 )
-from vllm_ascend.device.hardware_profile import HardwareCapability, get_current_hardware_profile
+from vllm_ascend.device.hardware_profile import (
+    HardwareCapability,
+    get_current_hardware_profile,
+)
 from vllm_ascend.distributed.kv_transfer.kv_pool.ascend_store.layerwise_cache_layout import (
     allocate_shared_indexer_cache,
     get_layerwise_reuse_config,
@@ -96,9 +98,14 @@ from vllm_ascend.distributed.kv_transfer.sparse_kv_offload.sparse_kv_offload_man
     reshape_kv_cache_tensors_for_sparse_kv_offload,
 )
 from vllm_ascend.models.deepseek_v41.cache_config import is_deepseek_v41_cache
-from vllm_ascend.models.glm5next.cache_views import view_compressed_indexer_cache, view_kpool_tail_cache
+from vllm_ascend.models.glm5next.cache_views import (
+    view_compressed_indexer_cache,
+    view_kpool_tail_cache,
+)
 from vllm_ascend.quantization.methods.kv_cache.turboquant import TURBOQUANT_CACHE_DTYPE
-from vllm_ascend.quantization.methods.kv_cache.turboquant.cache import uses_turboquant_groups
+from vllm_ascend.quantization.methods.kv_cache.turboquant.cache import (
+    uses_turboquant_groups,
+)
 from vllm_ascend.quantization.utils import enable_fa_quant
 from vllm_ascend.utils import (
     calc_split_factor,
@@ -114,6 +121,7 @@ from vllm_ascend.worker.utils import (
     get_single_raw_mla_backing,
     make_page_strided_cache_view,
 )
+from vllm_ascend.worker.v2.six_region_cache import allocate_six_region_cache
 
 if TYPE_CHECKING:
     from vllm_ascend.worker.v2.pcp_manager import AscendPCPAttentionContext
@@ -967,6 +975,7 @@ def _allocate_kv_cache(
     kv_cache_config: KVCacheConfig,
     shared_layers: dict[str, str],
     device: torch.device,
+    attn_layers: dict[str, AttentionLayerBase] | None = None,
 ) -> dict[str, torch.Tensor | tuple[torch.Tensor, ...]]:
     """
     Initialize the KV cache buffer with the correct size. The buffer needs to be
@@ -998,7 +1007,6 @@ def _allocate_kv_cache(
     # prefill disaggregation need the addr of cache tensor be aligned with 2M
     alignment = 2 * 1024 * 1024
     layer_kv_cache_spec = _get_layer_kv_cache_specs(kv_cache_config)
-    attn_layers: dict[str, AttentionLayerBase] | None = None
     if is_deepseek_v41_cache(layer_kv_cache_spec):
         for allocation in kv_cache_config.kv_cache_tensors:
             backing = _allocate_int8_cache_tensor(allocation.size, alignment, device)
@@ -1247,6 +1255,20 @@ def _allocate_kv_cache(
                 kv_cache_raw_tensors[layer_name] = (_allocate_int8_cache_tensor(raw_size, alignment, device),)
             continue
 
+        if attn_layers is not None and all(
+            getattr(attn_layers[name].get_attn_backend(), "uses_descriptor_cache_view", False) is True
+            for name in shared_names
+        ):
+            backing = _allocate_int8_cache_tensor(kv_cache_tensor.size, alignment, device)
+            for layer_idx, layer_name in enumerate(shared_names):
+                spec = layer_kv_cache_spec[layer_name]
+                size = kv_cache_config.num_blocks * spec.page_size_bytes
+                start = kv_cache_tensor.offset + layer_idx * kv_cache_tensor.layer_stride
+                if kv_cache_tensor.block_stride != spec.page_size_bytes or start < 0 or start + size > backing.numel():
+                    raise ValueError(f"Unsupported descriptor cache geometry for {layer_name}.")
+                kv_cache_raw_tensors[layer_name] = backing[start : start + size]
+            continue
+
         # vLLM #51718 packs all group layers into one tensor on main; the
         # per-layer size is the block count times this layer's own page size
         # (correct even when the tensor's group is not the largest group).
@@ -1359,10 +1381,20 @@ def allocate_kv_cache_main(
         if (target_layer := getattr(layer, "kv_sharing_target_layer_name", None))
     }
 
+    six_region_caches = allocate_six_region_cache(
+        kv_cache_config,
+        lambda size: _allocate_int8_cache_tensor(size, 2 * 1024 * 1024, device),
+    )
+    if six_region_caches is not None:
+        for layer_name, target in shared_layers.items():
+            six_region_caches[layer_name] = six_region_caches[target]
+        return six_region_caches
+
     raw_tensors = _allocate_kv_cache(
         kv_cache_config,
         shared_layers=shared_layers,
         device=device,
+        attn_layers=attn_layers,
     )
 
     attn_groups: list[AttentionGroup] = []
@@ -1418,6 +1450,52 @@ def _reshape_mamba_kv_cache(
         list(kv_cache_spec.dtypes),
         physical_page_size,
     )
+
+
+def _reshape_descriptor_kv_cache(
+    raw: torch.Tensor,
+    spec: AttentionSpec,
+    backend: type[AttentionBackend],
+    min_num_blocks: int,
+) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+    """Bind descriptor-only QSA caches without the removed backend shape hook.
+
+    Main QSA needs dense NHD K/V components inside each physical page. Side
+    caches retain the descriptor's HNC layout, including compressed/ring states.
+    Padding belongs to the block stride and must never become token data.
+    """
+    if (
+        not isinstance(raw, torch.Tensor)
+        or raw.dtype not in (torch.uint8, torch.int8)
+        or raw.ndim != 1
+        or not raw.is_contiguous()
+    ):
+        raise ValueError("Descriptor KV cache requires one contiguous byte allocation.")
+    page_bytes = spec.page_size_bytes
+    itemsize = get_dtype_size(spec.dtype)
+    if page_bytes <= 0 or page_bytes % itemsize or raw.numel() % page_bytes:
+        raise ValueError("Descriptor KV cache allocation must contain whole aligned pages.")
+    blocks = raw.numel() // page_bytes
+    if blocks < min_num_blocks:
+        raise ValueError("Descriptor KV cache has fewer blocks than KVCacheManager.")
+
+    if getattr(backend, "uses_qsa_page_major_kv_view", False):
+        if spec.head_size_v != spec.head_size or spec.tokens_per_state != 1:
+            raise ValueError("QSA main cache requires equal K/V dimensions and one state per token.")
+        shape = (blocks, spec.num_states, spec.num_kv_heads, spec.head_size)
+        component_bytes = math.prod(shape[1:]) * itemsize
+        if 2 * component_bytes != spec.unpadded_page_size_bytes or 2 * component_bytes > page_bytes:
+            raise ValueError("QSA main cache descriptor does not match its K/V payload.")
+        return (
+            make_page_strided_cache_view(raw, shape, spec.dtype, page_bytes),
+            make_page_strided_cache_view(raw, shape, spec.dtype, page_bytes, offset_bytes=component_bytes),
+        )
+
+    width_bytes = spec.state_content_size_bytes
+    if width_bytes % itemsize or spec.num_heads * spec.num_states * width_bytes > page_bytes:
+        raise ValueError("Descriptor KV cache payload does not fit its aligned page.")
+    shape = (blocks, spec.num_heads, spec.num_states, width_bytes // itemsize)
+    return make_page_strided_cache_view(raw, shape, spec.dtype, page_bytes)
 
 
 def _reshape_kv_cache_v2(
@@ -1571,6 +1649,11 @@ def _reshape_kv_cache_v2(
                 continue
 
             raw_cache = kv_cache_raw_tensors[layer_name]
+            if getattr(group.backend, "uses_descriptor_cache_view", False) is True:
+                kv_caches[layer_name] = _reshape_descriptor_kv_cache(
+                    raw_cache, kv_cache_spec, group.backend, kv_cache_config.num_blocks
+                )
+                continue
             if getattr(kv_cache_spec, "store_on_host", False):
                 kv_caches[layer_name] = reshape_kv_cache_tensors_for_sparse_kv_offload(
                     raw_cache,

@@ -39,6 +39,7 @@ from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.metadata import (
     MooncakeTransferMetadata,
     MooncakeTransferMetadataGroups,
     ReqMeta,
+    get_block_layout,
 )
 from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.utils import (
     SizedDict,
@@ -104,7 +105,9 @@ class MooncakePullRecvingThread(threading.Thread):
         hf_text_config = self.model_config.hf_text_config
         self.num_key_value_heads = getattr(hf_text_config, "num_key_value_heads", 0)
         speculative_config = vllm_config.speculative_config
-        self.num_speculative_tokens = speculative_config.num_speculative_tokens if speculative_config is not None else 0
+        self.num_speculative_tokens = (
+            speculative_config.num_speculative_tokens if speculative_config is not None else 0
+        )
 
         self.tp_rank = tp_rank
         self.tp_size = tp_size
@@ -323,9 +326,22 @@ class MooncakePullRecvingThread(threading.Thread):
     ) -> list[list[int]]:
         """Infer one matched layer's TP strategy and remote rank groups."""
         if isinstance(spec, MambaSpec):
+            if spec.tp_replicated:
+                return [list(range(remote_pcp_size * remote_tp_size))]
             return self._get_mamba_remote_tp_rank_groups(
                 remote_pcp_size,
                 remote_tp_size,
+            )
+
+        if "NHD" in (
+            get_block_layout(self.local_metadata, local_layer_index),
+            get_block_layout(remote_metadata, remote_layer_index),
+        ):
+            self._validate_nhd_topology(remote_pcp_size, remote_dcp_size)
+            if self.num_key_value_heads <= 0:
+                raise ValueError("Mooncake NHD transfer requires the model's total KV head count.")
+            return self._get_attention_remote_tp_rank_groups(
+                remote_tp_size, remote_pcp_size, 1, 1, self.num_key_value_heads
             )
 
         fixed_total_num_kv_heads = None
@@ -490,7 +506,9 @@ class MooncakePullRecvingThread(threading.Thread):
             remote_rank_start = remote_dcp_group_rank * remote_dcp_size
             remote_tp_rank = remote_rank_start // remote_pcp_size
             remote_head_tp_rank = remote_tp_rank // remote_dcp_tp_size
-            remote_head_interval = self._get_head_interval(remote_head_tp_rank, remote_head_tp_size, total_num_kv_heads)
+            remote_head_interval = self._get_head_interval(
+                remote_head_tp_rank, remote_head_tp_size, total_num_kv_heads
+            )
             head_start = max(local_head_interval[0], remote_head_interval[0])
             head_end = min(local_head_interval[1], remote_head_interval[1])
             if head_start >= head_end:
@@ -965,7 +983,9 @@ class MooncakePullRecvingThread(threading.Thread):
                     f"Mooncake Mamba cache metadata count mismatch for layer {self.layer_names[local_layer_index]!r}"
                 )
 
-            for cache_index, (local_base_addr, remote_base_addr) in enumerate(zip(local_base_addrs, remote_base_addrs)):
+            for cache_index, (local_base_addr, remote_base_addr) in enumerate(
+                zip(local_base_addrs, remote_base_addrs)
+            ):
                 local_block_stride = self.block_strides[local_layer_index][cache_index]
                 remote_block_stride = remote_metadata.block_strides[remote_layer_index][cache_index]
                 local_block_len = self.block_lens[local_layer_index][cache_index]
@@ -1005,7 +1025,12 @@ class MooncakePullRecvingThread(threading.Thread):
                         remote_state_width = remote_state_shape[0] * remote_state_shape[1]
                         local_remainder = local_shape[1] - local_state_width
                         remote_remainder = remote_shape[1] - remote_state_width
-                        if local_remainder <= 0 or remote_remainder <= 0 or local_remainder % 2 or remote_remainder % 2:
+                        if (
+                            local_remainder <= 0
+                            or remote_remainder <= 0
+                            or local_remainder % 2
+                            or remote_remainder % 2
+                        ):
                             raise ValueError(
                                 f"Mooncake {mamba_type.name} conv shape cannot be decomposed: "
                                 f"local={local_shape}, remote={remote_shape}, "
@@ -1137,7 +1162,7 @@ class MooncakePullRecvingThread(threading.Thread):
     ) -> None:
         """Append all layers and requests belonging to one local spec."""
         spec = self.kv_cache_specs[spec_index]
-        if isinstance(spec, MambaSpec):
+        if isinstance(spec, MambaSpec) and not spec.tp_replicated:
             self._append_mamba_transfer_addresses(
                 spec,
                 remote_pcp_rank,
@@ -1180,9 +1205,14 @@ class MooncakePullRecvingThread(threading.Thread):
             for request_id, (local_block_ids, remote_block_ids) in block_ids_by_request.items()
         }
         remote_tp_metadata = remote_metadata.metadata_by_pcp_rank[remote_pcp_rank].metadata_by_tp_rank[remote_tp_rank]
-        transfer_whole_block = is_circular_kv_cache_spec(spec) or isinstance(
-            spec,
-            (MLAAttentionSpec, SlidingWindowMLASpec, AscendSFAIndexerCacheSpec),
+        replicated_state = isinstance(spec, MambaSpec) and spec.tp_replicated
+        transfer_whole_block = (
+            replicated_state
+            or is_circular_kv_cache_spec(spec)
+            or isinstance(
+                spec,
+                (MLAAttentionSpec, SlidingWindowMLASpec, AscendSFAIndexerCacheSpec),
+            )
         )
         if transfer_whole_block:
             for (local_layer_index, remote_layer_index), transfer_entries in transfer_entries_by_layer.items():
@@ -1196,12 +1226,12 @@ class MooncakePullRecvingThread(threading.Thread):
                 for cache_index, (local_base_addr, remote_base_addr) in enumerate(
                     zip(local_base_addrs, remote_base_addrs)
                 ):
-                    if is_circular_kv_cache_spec(spec):
+                    if replicated_state or is_circular_kv_cache_spec(spec):
                         local_shape = self.block_shapes[local_layer_index][cache_index]
                         remote_shape = remote_metadata.block_shapes[remote_layer_index][cache_index]
                         if local_shape != remote_shape:
                             raise ValueError(
-                                f"Mooncake circular cache layout mismatch for layer "
+                                f"Mooncake {'replicated' if replicated_state else 'circular'} cache layout mismatch for layer "
                                 f"{self.layer_names[local_layer_index]!r}, cache {cache_index}: "
                                 f"local={local_shape}, remote={remote_shape}"
                             )
@@ -1240,6 +1270,22 @@ class MooncakePullRecvingThread(threading.Thread):
             raise NotImplementedError(f"Mooncake transfer address calculation does not support {type(spec).__name__}")
 
         first_local_layer_index, first_remote_layer_index = next(iter(transfer_entries_by_layer))
+        if any(
+            "NHD" in (get_block_layout(self.local_metadata, local), get_block_layout(remote_metadata, remote))
+            for local, remote in transfer_entries_by_layer
+        ):
+            self._validate_nhd_topology(remote_pcp_size, remote_dcp_size)
+            self._append_nhd_transfer_addresses(
+                remote_tp_rank,
+                remote_tp_size,
+                remote_tp_metadata.kv_caches_base_addr,
+                remote_metadata,
+                transfer_entries_by_layer,
+                src_list,
+                dst_list,
+                length_list,
+            )
+            return
         local_num_heads = self.block_shapes[first_local_layer_index][0][0]
         remote_num_heads = remote_metadata.block_shapes[first_remote_layer_index][0][0]
         if isinstance(spec, SlidingWindowSpec):
@@ -1308,7 +1354,9 @@ class MooncakePullRecvingThread(threading.Thread):
             if remote_metadata.block_shapes[remote_layer_index][0][0] != remote_num_heads:
                 raise ValueError(f"Mooncake remote head count differs within local spec {spec_index}")
 
-            for cache_index, (local_base_addr, remote_base_addr) in enumerate(zip(local_base_addrs, remote_base_addrs)):
+            for cache_index, (local_base_addr, remote_base_addr) in enumerate(
+                zip(local_base_addrs, remote_base_addrs)
+            ):
                 local_block_shape = self.block_shapes[local_layer_index][cache_index]
                 remote_block_shape = remote_metadata.block_shapes[remote_layer_index][cache_index]
                 if not local_block_shape or local_block_shape[0] != local_num_heads:
@@ -1361,6 +1409,105 @@ class MooncakePullRecvingThread(threading.Thread):
                         dst_list=dst_list,
                         length_list=length_list,
                     )
+
+    def _validate_nhd_topology(self, remote_pcp_size: int, remote_dcp_size: int) -> None:
+        if self.pcp_size != 1 or remote_pcp_size != 1 or self.dcp_size != 1 or remote_dcp_size != 1:
+            raise NotImplementedError("Mooncake NHD transfer currently requires PCP=1 and DCP=1 at both endpoints.")
+
+    def _append_nhd_transfer_addresses(
+        self,
+        remote_tp_rank: int,
+        remote_tp_size: int,
+        remote_base_addrs: list[list[int]],
+        remote_metadata: MooncakePPTransferMetadata,
+        transfer_entries_by_layer: dict[tuple[int, int], list[tuple[str, list[int], list[int]]]],
+        src_list: list[int],
+        dst_list: list[int],
+        length_list: list[int],
+    ) -> None:
+        """Copy overlapping heads, preserving NHD token rows and page padding.
+
+        Replicated one-head QSA ranks copy one complete component per block.
+        Partial multi-head pages use per-token spans; mixed HND/NHD endpoints
+        use one head vector per span. No cache copies or device kernels needed.
+        """
+        heads = self.num_key_value_heads
+        if heads <= 0 or any(max(tp, heads) % min(tp, heads) for tp in (self.tp_size, remote_tp_size)):
+            raise ValueError("Mooncake NHD TP sizes must divide, or be multiples of, the total KV head count.")
+        local_start, local_end = self._get_head_interval(self.tp_rank, self.tp_size, heads)
+        remote_start, remote_end = self._get_head_interval(remote_tp_rank, remote_tp_size, heads)
+        start, end = max(local_start, remote_start), min(local_end, remote_end)
+        if start >= end:
+            raise ValueError("Mooncake NHD transfer has no overlapping KV heads.")
+        local_heads, remote_heads = local_end - local_start, remote_end - remote_start
+
+        for (local_layer, remote_layer), entries in transfer_entries_by_layer.items():
+            local_layout = get_block_layout(self.local_metadata, local_layer)
+            remote_layout = get_block_layout(remote_metadata, remote_layer)
+            local_addrs = self.kv_caches_base_addr[local_layer]
+            remote_addrs = remote_base_addrs[remote_layer]
+            if len(local_addrs) != len(remote_addrs):
+                raise ValueError("Mooncake NHD K/V component counts differ.")
+            for index, (local_addr, remote_addr) in enumerate(zip(local_addrs, remote_addrs)):
+                local_shape = self.block_shapes[local_layer][index]
+                remote_shape = remote_metadata.block_shapes[remote_layer][index]
+                if len(local_shape) != 3 or len(remote_shape) != 3:
+                    raise ValueError("Mooncake NHD transfer requires three-dimensional page payloads.")
+                lh, ln, ld = local_shape if local_layout == "HND" else (local_shape[1], local_shape[0], local_shape[2])
+                rh, rn, rd = (
+                    remote_shape if remote_layout == "HND" else (remote_shape[1], remote_shape[0], remote_shape[2])
+                )
+                if lh != local_heads or rh != remote_heads or ln != rn or ld != rd or min(ln, ld) <= 0:
+                    raise ValueError("Mooncake NHD shape does not match the head topology/token dimensions.")
+                local_len = self.block_lens[local_layer][index]
+                remote_len = remote_metadata.block_lens[remote_layer][index]
+                if local_len % (lh * ln) or remote_len % (rh * rn):
+                    raise ValueError("Mooncake NHD byte lengths do not match tensor shapes.")
+                vector_bytes = local_len // (lh * ln)
+                if vector_bytes != remote_len // (rh * rn) or vector_bytes % ld:
+                    raise ValueError("Mooncake NHD P/D element sizes differ.")
+                local_stride = self.block_strides[local_layer][index]
+                remote_stride = remote_metadata.block_strides[remote_layer][index]
+                if local_stride < local_len or remote_stride < remote_len:
+                    raise ValueError("Mooncake NHD page stride is smaller than its payload.")
+                local_offset, remote_offset = start - local_start, start - remote_start
+                if local_layout == remote_layout and lh == rh == end - start:
+                    slices = [(0, 0, local_len)]
+                elif local_layout == remote_layout == "NHD":
+                    slices = [
+                        (
+                            (token * lh + local_offset) * vector_bytes,
+                            (token * rh + remote_offset) * vector_bytes,
+                            (end - start) * vector_bytes,
+                        )
+                        for token in range(ln)
+                    ]
+                else:
+                    slices = [
+                        (
+                            (
+                                (head + local_offset) * ln + token
+                                if local_layout == "HND"
+                                else token * lh + head + local_offset
+                            )
+                            * vector_bytes,
+                            (
+                                (head + remote_offset) * rn + token
+                                if remote_layout == "HND"
+                                else token * rh + head + remote_offset
+                            )
+                            * vector_bytes,
+                            vector_bytes,
+                        )
+                        for token in range(ln)
+                        for head in range(end - start)
+                    ]
+                for _, local_blocks, remote_blocks in entries:
+                    for local_block, remote_block in zip(local_blocks, remote_blocks):
+                        for local_inner, remote_inner, length in slices:
+                            src_list.append(local_addr + local_block * local_stride + local_inner)
+                            dst_list.append(remote_addr + remote_block * remote_stride + remote_inner)
+                            length_list.append(length)
 
     def _execute_tp_transfer_bucket(
         self,

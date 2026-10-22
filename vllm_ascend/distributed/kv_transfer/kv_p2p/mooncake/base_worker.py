@@ -23,9 +23,11 @@ from vllm.distributed.parallel_state import (
 from vllm.logger import logger
 from vllm.utils.network_utils import get_ip
 from vllm.v1.kv_cache_interface import (
+    FullAttentionSpec,
     KVCacheSpec,
     MLAAttentionSpec,
     SlidingWindowMLASpec,
+    SlidingWindowSpec,
     UniformTypeKVCacheSpecs,
 )
 
@@ -278,12 +280,15 @@ class MooncakeBaseConnectorWorker:
         block_lens_per_layer: list[list[int]] = []
         block_shapes_per_layer: list[list[tuple[int, ...]]] = []
         block_size_scales_per_layer: list[list[int]] = []
+        block_layouts: list[str] = []
         configured_layer_names: set[str] = set()
 
         for tensor_config in self.kv_cache_config.kv_cache_tensors:
             for layer_name in get_kv_cache_tensor_layers(tensor_config):
                 if layer_name in configured_layer_names:
-                    raise ValueError(f"Layer {layer_name!r} is referenced by more than one configured KV cache tensor.")
+                    raise ValueError(
+                        f"Layer {layer_name!r} is referenced by more than one configured KV cache tensor."
+                    )
                 if layer_name not in self.layer_name_to_group_index:
                     raise ValueError(f"Configured KV cache layer {layer_name!r} does not belong to a KV cache group.")
 
@@ -307,6 +312,20 @@ class MooncakeBaseConnectorWorker:
                 spec_index = self.layer_name_to_spec_index[layer_name]
                 spec = self.kv_cache_specs[spec_index]
                 caches = as_kv_cache_tensors(cache_or_caches)
+                layout = "HND"
+                if isinstance(spec, (FullAttentionSpec, SlidingWindowSpec)) and not isinstance(
+                    spec, (MLAAttentionSpec, SlidingWindowMLASpec)
+                ):
+                    # Identify dense NHD from the declared local KV head count.
+                    # QSA keeps K and V page-major; transposing their metadata
+                    # would produce wrong head offsets when P/D TP differs.
+                    if all(
+                        t.ndim == 4 and t.shape[2] == spec.num_kv_heads and t.shape[1] != spec.num_kv_heads
+                        for t in caches
+                    ):
+                        layout = "NHD"
+                        if any(t.stride()[1:] != (t.shape[2] * t.shape[3], t.shape[3], 1) for t in caches):
+                            raise ValueError(f"Mooncake NHD cache must be dense inside each page: {layer_name}")
                 shared_page_metadata = (
                     self._get_shared_page_metadata(caches)
                     if isinstance(spec, (MLAAttentionSpec, SlidingWindowMLASpec))
@@ -358,6 +377,7 @@ class MooncakeBaseConnectorWorker:
                 block_lens_per_layer.append(block_lens)
                 block_shapes_per_layer.append(block_shapes)
                 block_size_scales_per_layer.append(block_size_scales)
+                block_layouts.append(layout)
 
         unexpected_layers = kv_caches.keys() - configured_layer_names
         if unexpected_layers:
@@ -382,6 +402,7 @@ class MooncakeBaseConnectorWorker:
             block_size_scales=block_size_scales_per_layer,
             local_ip=self.side_channel_host,
             handshake_port=self.handshake_port,
+            block_layouts=block_layouts,
         )
         self.transfer_metadata = transfer_metadata
         self.xfer_handshake_metadata = transfer_metadata

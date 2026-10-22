@@ -27,10 +27,13 @@ from pydantic import ConfigDict, TypeAdapter, field_validator, model_validator
 from pydantic_core import ArgsKwargs
 from vllm.logger import logger
 from vllm.utils.math_utils import cdiv
-
 from vllm_ascend.config_utils import config
 from vllm_ascend.device.device_config import is_950
-from vllm_ascend.device.hardware_profile import DeviceAdaptorFamily, HardwareCapability, get_current_hardware_profile
+from vllm_ascend.device.hardware_profile import (
+    DeviceAdaptorFamily,
+    HardwareCapability,
+    get_current_hardware_profile,
+)
 
 if TYPE_CHECKING:
     from vllm.config import VllmConfig
@@ -144,7 +147,10 @@ class AscendCompilationConfig:
 
     @model_validator(mode="after")
     def _apply_unsupported_hardware_downgrade_and_static_kernel_check(self):
-        from vllm_ascend.device.hardware_profile import HardwareCapability, get_current_hardware_profile
+        from vllm_ascend.device.hardware_profile import (
+            HardwareCapability,
+            get_current_hardware_profile,
+        )
 
         if not get_current_hardware_profile().supports(HardwareCapability.NPUGRAPH_EX):
             if self.enable_npugraph_ex:
@@ -569,8 +575,9 @@ class AscendConfig:
     # FULL graphs wait on descriptor-specific external events at consumers.
     # Default to overlap on A5 only; explicit settings override this policy.
     multistream_engram_overlap: bool = dataclasses.field(
-        default_factory=lambda: get_current_hardware_profile().device_adaptor_family
-        == DeviceAdaptorFamily.FP8_OPTIMIZED
+        default_factory=lambda: (
+            get_current_hardware_profile().device_adaptor_family == DeviceAdaptorFamily.FP8_OPTIMIZED
+        )
     )
     enable_prefill_mc2: bool = False
     multistream_overlap_shared_expert: bool = False
@@ -876,8 +883,15 @@ class AscendConfig:
                     "in the MLA attention path."
                 )
 
-        # PD tp_ratio / head_ratio / num_head_replica derivation
-        if vc.kv_transfer_config is not None and vc.model_config is not None and not vc.model_config.is_deepseek_mla:
+        # Legacy push connectors rearrange heads on P and require P TP >= D TP.
+        # Mooncake V2 pulls from rank metadata in either direction and must not
+        # create these legacy P-side rearrangement groups.
+        if (
+            vc.kv_transfer_config is not None
+            and vc.model_config is not None
+            and not vc.model_config.is_deepseek_mla
+            and vc.kv_transfer_config.kv_connector != "MooncakeConnectorV2"
+        ):
             prefill_tp_size = vc.kv_transfer_config.get_from_extra_config("prefill", {"tp_size": 1})["tp_size"]
             decode_tp_size = vc.kv_transfer_config.get_from_extra_config("decode", {"tp_size": 1})["tp_size"]
             assert prefill_tp_size % decode_tp_size == 0, "Prefill TP size must be divisible by Decode TP size."
@@ -978,13 +992,18 @@ class AscendConfig:
         )
 
     def _validate_mc2_comm_alg(self, vllm_config: VllmConfig) -> None:
-        from vllm_ascend.device.hardware_profile import HardwareCapability, get_current_hardware_profile
+        from vllm_ascend.device.hardware_profile import (
+            HardwareCapability,
+            get_current_hardware_profile,
+        )
 
         hardware_profile = get_current_hardware_profile()
         if self.mc2_comm_alg == "fullmesh_v2" and not hardware_profile.supports(
             HardwareCapability.MC2_FULLMESH_V2_COMM
         ):
-            raise NotImplementedError("mc2_comm_alg == 'fullmesh_v2' is not supported by the current hardware profile.")
+            raise NotImplementedError(
+                "mc2_comm_alg == 'fullmesh_v2' is not supported by the current hardware profile."
+            )
 
         if self.mc2_comm_alg != "hierarchy":
             return
@@ -1279,7 +1298,10 @@ class AscendConfig:
         return
 
     def get_mc2_comm_alg(self) -> str:
-        from vllm_ascend.device.hardware_profile import HardwareCapability, get_current_hardware_profile
+        from vllm_ascend.device.hardware_profile import (
+            HardwareCapability,
+            get_current_hardware_profile,
+        )
 
         # When A3 and comm_alg == "fullmesh", dispatch/combine op need pass in "fullmesh_v1" instead of "fullmesh"
         # TODO(zzzzwwjj): Remove it when op's param is uniformed between A2/A3/A5.
