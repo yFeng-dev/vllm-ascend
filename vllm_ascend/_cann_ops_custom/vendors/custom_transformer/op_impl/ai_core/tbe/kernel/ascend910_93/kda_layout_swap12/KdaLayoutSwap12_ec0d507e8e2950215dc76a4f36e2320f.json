@@ -1,0 +1,100 @@
+{
+ "binFileName": "KdaLayoutSwap12_ec0d507e8e2950215dc76a4f36e2320f",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "VectorCore",
+ "core_type": "AIV",
+ "intercoreSync": 0,
+ "kernelName": "KdaLayoutSwap12_ec0d507e8e2950215dc76a4f36e2320f",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF_AIVEC",
+ "memoryStamping": [],
+ "opParaSize": 56,
+ "parameters": [
+  null,
+  null,
+  null,
+  null
+ ],
+ "sha256": "57b6f2b93804b8368eb4dac57d39fd43656d9e786dfb61839910c27bc7e5b8c1",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "kernelName": "KdaLayoutSwap12_ec0d507e8e2950215dc76a4f36e2320f_0"
+  },
+  {
+   "kernelName": "KdaLayoutSwap12_ec0d507e8e2950215dc76a4f36e2320f_1"
+  },
+  {
+   "kernelName": "KdaLayoutSwap12_ec0d507e8e2950215dc76a4f36e2320f_2"
+  }
+ ],
+ "optionalInputMode": "gen_placeholder",
+ "optionalOutputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "compileInfo": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "KdaLayoutSwap12/d=0,p=1/1,2/1,2",
+   "KdaLayoutSwap12/d=0,p=0/1,2/1,2",
+   "KdaLayoutSwap12/d=1,p=1/1,2/1,2",
+   "KdaLayoutSwap12/d=1,p=0/1,2/1,2"
+  ],
+  "optionalInputMode": "gen_placeholder",
+  "optionalOutputMode": "gen_placeholder",
+  "staticKey": "1ed3a1300b7f9b768795365a74747eb4a9d9d5d2355f67a8d620fcc3ba920eb4,63e97db338d8fefb3bc0a7dae439582403cb656aca235db6462fc59e7bbb4754",
+  "inputs": [
+   {
+    "name": "x",
+    "index": 0,
+    "dtype": "float16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "dependency",
+    "index": 1,
+    "dtype": "float16",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "y",
+    "index": 0,
+    "dtype": "float16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/kda_layout_swap12/KdaLayoutSwap12_ec0d507e8e2950215dc76a4f36e2320f.json"
+}

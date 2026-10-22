@@ -1,0 +1,357 @@
+{
+ "binFileName": "FusedLightningIndexerManage_9ed439814baf525e9dfa2da2246861c2_relocatable",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "MIX",
+ "intercoreSync": 1,
+ "kernelName": "FusedLightningIndexerManage_9ed439814baf525e9dfa2da2246861c2_relocatable",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF",
+ "memoryStamping": [],
+ "opParaSize": 48,
+ "parameters": [
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null
+ ],
+ "sha256": "ea82c552dca97330b87661ea714f9d5fa91f9acf1f82f364b720e02030e45fb0",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "tilingKey": 1,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "FusedLightningIndexerManage_9ed439814baf525e9dfa2da2246861c2_relocatable_1"
+  },
+  {
+   "tilingKey": 27,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "FusedLightningIndexerManage_9ed439814baf525e9dfa2da2246861c2_relocatable_27"
+  }
+ ],
+ "taskRation": "tilingKey",
+ "optionalInputMode": "gen_placeholder",
+ "optionalOutputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "sub_operator_op_type": "FusedLightningIndexerManage",
+ "sub_operator_params": [
+  "ffts_addr",
+  "index_weights_in__",
+  "query_dequant_scale_in__",
+  "query_in__",
+  "index_key_dequant_scale_in__",
+  "index_key_cache_in__",
+  "index_block_table_in__",
+  "actual_seq_lengths_query_in__",
+  "actual_seq_lengths_key_in__",
+  "offload_seq_lengths_key_in__",
+  "num_cache_tokens_in__",
+  "request_state_in__",
+  "req_pool_entries_in__",
+  "cache_slots_pool_in__",
+  "topk_src_ids_out_",
+  "topk_dst_slots_out_",
+  "topk_miss_counts_out_",
+  "miss_src_ids_out_",
+  "miss_dst_slots_out_",
+  "miss_counts_out_",
+  "cache_slots_pool_out_out_",
+  "workspace",
+  "tiling"
+ ],
+ "sub_operator_kernel_type": "KERNEL_TYPE_MIX_AIC_1_2",
+ "sub_operator_kernel_name": {
+  "dynamic_func_names": {
+   "1": {
+    "dav-c220-cube": "FusedLightningIndexerManage_9ed439814baf525e9dfa2da2246861c2_relocatable_1_mix_aic",
+    "kernel_type": "KERNEL_TYPE_MIX_AIC_1_2",
+    "dav-c220-vec": "FusedLightningIndexerManage_9ed439814baf525e9dfa2da2246861c2_relocatable_1_mix_aiv"
+   },
+   "27": {
+    "dav-c220-cube": "FusedLightningIndexerManage_9ed439814baf525e9dfa2da2246861c2_relocatable_27_mix_aic",
+    "kernel_type": "KERNEL_TYPE_MIX_AIC_1_2",
+    "dav-c220-vec": "FusedLightningIndexerManage_9ed439814baf525e9dfa2da2246861c2_relocatable_27_mix_aiv"
+   }
+  }
+ },
+ "sub_operator_early_start_set_flag": false,
+ "sub_operator_early_start_wait_flag": false,
+ "sub_operator_call_dcci_before_kernel_start": true,
+ "sub_operator_call_dcci_after_kernel_end": true,
+ "sub_operator_call_dcci_disable_on_kernel": false,
+ "sub_op_with_sync_all": true,
+ "compileInfo": {},
+ "feature_list": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "FusedLightningIndexerManage/d=0,p=1/27,2/0,2/27,2/0,2/27,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2",
+   "FusedLightningIndexerManage/d=0,p=0/27,2/0,2/27,2/0,2/27,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2",
+   "FusedLightningIndexerManage/d=1,p=1/27,2/0,2/27,2/0,2/27,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2",
+   "FusedLightningIndexerManage/d=1,p=0/27,2/0,2/27,2/0,2/27,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2/3,2"
+  ],
+  "optionalInputMode": "gen_placeholder",
+  "optionalOutputMode": "gen_placeholder",
+  "staticKey": "755867824819d6e71b879e52a3d235333ece2bba1cacc5629f058a74a0496b14,31e4212d39b87d3e030f85ee2de849af08c9578e04d8a24d7dc4f9899527537d",
+  "inputs": [
+   {
+    "name": "index_weights",
+    "index": 0,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "query_dequant_scale",
+    "index": 1,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "query",
+    "index": 2,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "index_key_dequant_scale",
+    "index": 3,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "index_key_cache",
+    "index": 4,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "index_block_table",
+    "index": 5,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "actual_seq_lengths_query",
+    "index": 6,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "actual_seq_lengths_key",
+    "index": 7,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "offload_seq_lengths_key",
+    "index": 8,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "num_cache_tokens",
+    "index": 9,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "request_state",
+    "index": 10,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "req_pool_entries",
+    "index": 11,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "cache_slots_pool",
+    "index": 12,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "topk_src_ids",
+    "index": 0,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "topk_dst_slots",
+    "index": 1,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "topk_miss_counts",
+    "index": 2,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "miss_src_ids",
+    "index": 3,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "miss_dst_slots",
+    "index": 4,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "miss_counts",
+    "index": 5,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "cache_slots_pool_out",
+    "index": 6,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/fused_lightning_indexer_manage/FusedLightningIndexerManage_9ed439814baf525e9dfa2da2246861c2_relocatable.json"
+}

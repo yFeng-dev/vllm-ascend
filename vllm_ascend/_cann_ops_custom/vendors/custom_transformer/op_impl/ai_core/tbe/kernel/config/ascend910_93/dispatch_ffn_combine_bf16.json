@@ -1,0 +1,636 @@
+{
+  "binList": [
+    {
+      "implMode": "high_performance",
+      "int64Mode": false,
+      "simplifiedKeyMode": 0,
+      "simplifiedKey": [
+        "DispatchFFNCombineBF16/d=0,p=1/1,2/1,2/1,2/3,2/9,2/9,2/0,2/1,2/3,2",
+        "DispatchFFNCombineBF16/d=0,p=0/1,2/1,2/1,2/3,2/9,2/9,2/0,2/1,2/3,2",
+        "DispatchFFNCombineBF16/d=1,p=1/1,2/1,2/1,2/3,2/9,2/9,2/0,2/1,2/3,2",
+        "DispatchFFNCombineBF16/d=1,p=0/1,2/1,2/1,2/3,2/9,2/9,2/0,2/1,2/3,2"
+      ],
+      "dynamicParamMode": "folded_with_desc",
+      "staticKey": "520335ea4a0bbe06704cd7ba7f07b017664685dadfb49d5b9abf2151d5b79167,6872d8326cdf4384fffd67c32601d31b8060e9fa1db0d53195ecaf8acac263c1",
+      "inputs": [
+        {
+          "name": "a",
+          "index": 0,
+          "dtype": "float16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        [
+          {
+            "name": "w1",
+            "index": 1,
+            "dtype": "float16",
+            "format": "ND",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        [
+          {
+            "name": "w2",
+            "index": 2,
+            "dtype": "float16",
+            "format": "ND",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        {
+          "name": "expertIdx",
+          "index": 3,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        [
+          {
+            "name": "scale1",
+            "index": 4,
+            "dtype": "int64",
+            "format": "ND",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        [
+          {
+            "name": "scale2",
+            "index": 5,
+            "dtype": "int64",
+            "format": "ND",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        {
+          "name": "probs",
+          "index": 6,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "index": 0,
+          "dtype": "float16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "expert_token_nums",
+          "index": 1,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "attrs": [
+        {
+          "name": "group",
+          "dtype": "str",
+          "value": ""
+        },
+        {
+          "name": "M",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "transB",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "weightNz",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "worldSize",
+          "dtype": "int",
+          "value": 0
+        }
+      ],
+      "opMode": "dynamic",
+      "optionalInputMode": "gen_placeholder",
+      "deterministic": "ignore",
+      "optionalOutputMode": "gen_placeholder",
+      "binInfo": {
+        "jsonFilePath": "ascend910_93/dispatch_ffn_combine_bf16/DispatchFFNCombineBF16_101254347aa900a5e5dd227b2acafceb.json"
+      }
+    },
+    {
+      "implMode": "high_performance",
+      "int64Mode": false,
+      "simplifiedKeyMode": 0,
+      "simplifiedKey": [
+        "DispatchFFNCombineBF16/d=0,p=1/1,2/1,29/1,29/3,2/9,2/9,2/0,2/1,2/3,2",
+        "DispatchFFNCombineBF16/d=0,p=0/1,2/1,29/1,29/3,2/9,2/9,2/0,2/1,2/3,2",
+        "DispatchFFNCombineBF16/d=1,p=1/1,2/1,29/1,29/3,2/9,2/9,2/0,2/1,2/3,2",
+        "DispatchFFNCombineBF16/d=1,p=0/1,2/1,29/1,29/3,2/9,2/9,2/0,2/1,2/3,2"
+      ],
+      "dynamicParamMode": "folded_with_desc",
+      "staticKey": "0bf060c5f764e68b89cfd6a453d532e85fd650ad85de3738955360294f4406c8,c442d0286eb244ee8f4ca9601d056887dfb80abd1ae3c2ccf0bdd074cdaa9711",
+      "inputs": [
+        {
+          "name": "a",
+          "index": 0,
+          "dtype": "float16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        [
+          {
+            "name": "w1",
+            "index": 1,
+            "dtype": "float16",
+            "format": "FRACTAL_NZ",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        [
+          {
+            "name": "w2",
+            "index": 2,
+            "dtype": "float16",
+            "format": "FRACTAL_NZ",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        {
+          "name": "expertIdx",
+          "index": 3,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        [
+          {
+            "name": "scale1",
+            "index": 4,
+            "dtype": "int64",
+            "format": "ND",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        [
+          {
+            "name": "scale2",
+            "index": 5,
+            "dtype": "int64",
+            "format": "ND",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        {
+          "name": "probs",
+          "index": 6,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "index": 0,
+          "dtype": "float16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "expert_token_nums",
+          "index": 1,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "attrs": [
+        {
+          "name": "group",
+          "dtype": "str",
+          "value": ""
+        },
+        {
+          "name": "M",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "transB",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "weightNz",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "worldSize",
+          "dtype": "int",
+          "value": 0
+        }
+      ],
+      "opMode": "dynamic",
+      "optionalInputMode": "gen_placeholder",
+      "deterministic": "ignore",
+      "optionalOutputMode": "gen_placeholder",
+      "binInfo": {
+        "jsonFilePath": "ascend910_93/dispatch_ffn_combine_bf16/DispatchFFNCombineBF16_1e6cae4cf8b5265b6497a8f756470291.json"
+      }
+    },
+    {
+      "implMode": "high_performance",
+      "int64Mode": false,
+      "simplifiedKeyMode": 0,
+      "simplifiedKey": [
+        "DispatchFFNCombineBF16/d=0,p=1/27,2/27,2/27,2/3,2/9,2/9,2/0,2/27,2/3,2",
+        "DispatchFFNCombineBF16/d=0,p=0/27,2/27,2/27,2/3,2/9,2/9,2/0,2/27,2/3,2",
+        "DispatchFFNCombineBF16/d=1,p=1/27,2/27,2/27,2/3,2/9,2/9,2/0,2/27,2/3,2",
+        "DispatchFFNCombineBF16/d=1,p=0/27,2/27,2/27,2/3,2/9,2/9,2/0,2/27,2/3,2"
+      ],
+      "dynamicParamMode": "folded_with_desc",
+      "staticKey": "fc893e14e3fe4c709fec73139fbe90f48aeca6b421b2921c1eae2ec4871044aa,a600860a0ed8016b72ee381258a8709c7f0455ebd3efb620a82dc8aca2c3e321",
+      "inputs": [
+        {
+          "name": "a",
+          "index": 0,
+          "dtype": "bfloat16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        [
+          {
+            "name": "w1",
+            "index": 1,
+            "dtype": "bfloat16",
+            "format": "ND",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        [
+          {
+            "name": "w2",
+            "index": 2,
+            "dtype": "bfloat16",
+            "format": "ND",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        {
+          "name": "expertIdx",
+          "index": 3,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        [
+          {
+            "name": "scale1",
+            "index": 4,
+            "dtype": "int64",
+            "format": "ND",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        [
+          {
+            "name": "scale2",
+            "index": 5,
+            "dtype": "int64",
+            "format": "ND",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        {
+          "name": "probs",
+          "index": 6,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "index": 0,
+          "dtype": "bfloat16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "expert_token_nums",
+          "index": 1,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "attrs": [
+        {
+          "name": "group",
+          "dtype": "str",
+          "value": ""
+        },
+        {
+          "name": "M",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "transB",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "weightNz",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "worldSize",
+          "dtype": "int",
+          "value": 0
+        }
+      ],
+      "opMode": "dynamic",
+      "optionalInputMode": "gen_placeholder",
+      "deterministic": "ignore",
+      "optionalOutputMode": "gen_placeholder",
+      "binInfo": {
+        "jsonFilePath": "ascend910_93/dispatch_ffn_combine_bf16/DispatchFFNCombineBF16_9b6f5e4b1b83eaa9a7960020b4596f54.json"
+      }
+    },
+    {
+      "implMode": "high_performance",
+      "int64Mode": false,
+      "simplifiedKeyMode": 0,
+      "simplifiedKey": [
+        "DispatchFFNCombineBF16/d=0,p=1/27,2/27,29/27,29/3,2/9,2/9,2/0,2/27,2/3,2",
+        "DispatchFFNCombineBF16/d=0,p=0/27,2/27,29/27,29/3,2/9,2/9,2/0,2/27,2/3,2",
+        "DispatchFFNCombineBF16/d=1,p=1/27,2/27,29/27,29/3,2/9,2/9,2/0,2/27,2/3,2",
+        "DispatchFFNCombineBF16/d=1,p=0/27,2/27,29/27,29/3,2/9,2/9,2/0,2/27,2/3,2"
+      ],
+      "dynamicParamMode": "folded_with_desc",
+      "staticKey": "9a69afdcc1eb498a4979baa1e1f7261bfdae5193e9d71e6bdd6b436a1d9be6c1,7b945d56f9b101413d7bb84540b96ec6dda1366a7d452f3813e362ddc69d7229",
+      "inputs": [
+        {
+          "name": "a",
+          "index": 0,
+          "dtype": "bfloat16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        [
+          {
+            "name": "w1",
+            "index": 1,
+            "dtype": "bfloat16",
+            "format": "FRACTAL_NZ",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        [
+          {
+            "name": "w2",
+            "index": 2,
+            "dtype": "bfloat16",
+            "format": "FRACTAL_NZ",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        {
+          "name": "expertIdx",
+          "index": 3,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        [
+          {
+            "name": "scale1",
+            "index": 4,
+            "dtype": "int64",
+            "format": "ND",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        [
+          {
+            "name": "scale2",
+            "index": 5,
+            "dtype": "int64",
+            "format": "ND",
+            "paramType": "dynamic",
+            "shape": [
+              -2
+            ],
+            "format_match_mode": "FormatAgnostic"
+          }
+        ],
+        {
+          "name": "probs",
+          "index": 6,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "index": 0,
+          "dtype": "bfloat16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "expert_token_nums",
+          "index": 1,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "attrs": [
+        {
+          "name": "group",
+          "dtype": "str",
+          "value": ""
+        },
+        {
+          "name": "M",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "transB",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "weightNz",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "worldSize",
+          "dtype": "int",
+          "value": 0
+        }
+      ],
+      "opMode": "dynamic",
+      "optionalInputMode": "gen_placeholder",
+      "deterministic": "ignore",
+      "optionalOutputMode": "gen_placeholder",
+      "binInfo": {
+        "jsonFilePath": "ascend910_93/dispatch_ffn_combine_bf16/DispatchFFNCombineBF16_ace4e873c1cdf78be6f210a7cb0548d3.json"
+      }
+    }
+  ]
+}

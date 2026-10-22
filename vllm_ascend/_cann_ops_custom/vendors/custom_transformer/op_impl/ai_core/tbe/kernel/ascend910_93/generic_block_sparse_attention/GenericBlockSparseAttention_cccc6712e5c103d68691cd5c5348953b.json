@@ -1,0 +1,553 @@
+{
+ "binFileName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "MIX",
+ "intercoreSync": 1,
+ "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF",
+ "memoryStamping": [],
+ "opParaSize": 256,
+ "parameters": [
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null
+ ],
+ "sha256": "72b9344f7eb961bdd630fbdd2a97190a84ae1372e482d6ab6ea3677a115b1645",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "tilingKey": 9200001071001002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200001071001002"
+  },
+  {
+   "tilingKey": 9200001071000002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200001071000002"
+  },
+  {
+   "tilingKey": 9200001071101002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200001071101002"
+  },
+  {
+   "tilingKey": 9200001071100002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200001071100002"
+  },
+  {
+   "tilingKey": 9200001071023222,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200001071023222"
+  },
+  {
+   "tilingKey": 9200001071022222,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200001071022222"
+  },
+  {
+   "tilingKey": 9200001030001002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200001030001002"
+  },
+  {
+   "tilingKey": 9200001030000002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200001030000002"
+  },
+  {
+   "tilingKey": 9200001030101002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200001030101002"
+  },
+  {
+   "tilingKey": 9200001030100002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200001030100002"
+  },
+  {
+   "tilingKey": 9200001030023222,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200001030023222"
+  },
+  {
+   "tilingKey": 9200001030022222,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200001030022222"
+  },
+  {
+   "tilingKey": 9200000030001002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000030001002"
+  },
+  {
+   "tilingKey": 9200000030000002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000030000002"
+  },
+  {
+   "tilingKey": 9200000030101002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000030101002"
+  },
+  {
+   "tilingKey": 9200000030100002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000030100002"
+  },
+  {
+   "tilingKey": 9200000030023222,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000030023222"
+  },
+  {
+   "tilingKey": 9200000030022222,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000030022222"
+  },
+  {
+   "tilingKey": 9200000071001002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000071001002"
+  },
+  {
+   "tilingKey": 9200000071000002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000071000002"
+  },
+  {
+   "tilingKey": 9200000071023222,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000071023222"
+  },
+  {
+   "tilingKey": 9200000071022222,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000071022222"
+  },
+  {
+   "tilingKey": 9200000071101002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000071101002"
+  },
+  {
+   "tilingKey": 9200000071100002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000071100002"
+  },
+  {
+   "tilingKey": 9200000171001002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000171001002"
+  },
+  {
+   "tilingKey": 9200000171000002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000171000002"
+  },
+  {
+   "tilingKey": 9200000171023222,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000171023222"
+  },
+  {
+   "tilingKey": 9200000171022222,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000171022222"
+  },
+  {
+   "tilingKey": 9200000171101002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000171101002"
+  },
+  {
+   "tilingKey": 9200000171100002,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b_9200000171100002"
+  }
+ ],
+ "taskRation": "tilingKey",
+ "optionalInputMode": "gen_placeholder",
+ "optionalOutputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "compileInfo": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "GenericBlockSparseAttention/d=0,p=1/27,2/27,2/27,2/3,2/3,2/27,2",
+   "GenericBlockSparseAttention/d=0,p=0/27,2/27,2/27,2/3,2/3,2/27,2",
+   "GenericBlockSparseAttention/d=1,p=1/27,2/27,2/27,2/3,2/3,2/27,2",
+   "GenericBlockSparseAttention/d=1,p=0/27,2/27,2/27,2/3,2/3,2/27,2"
+  ],
+  "optionalInputMode": "gen_placeholder",
+  "optionalOutputMode": "gen_placeholder",
+  "staticKey": "1473e1649ef2b65f34d395fc2c21bd328189916bda2b3f4e5c3635ec0ea5a025,433bf7597f2a45bb53f1da4ff2315a8693703a34dd8650296119cf1398856868",
+  "inputs": [
+   {
+    "name": "query",
+    "index": 0,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "key",
+    "index": 1,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "value",
+    "index": 2,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "sparse_block_idx",
+    "index": 3,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "sparse_block_count",
+    "index": 4,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "metadata",
+    "index": 5,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "atten_mask",
+    "index": 6,
+    "dtype": "bool",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "q_dequant_scale",
+    "index": 7,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "k_dequant_scale",
+    "index": 8,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "v_dequant_scale",
+    "index": 9,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "p_quant_scale",
+    "index": 10,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "cu_seq_lengths_q",
+    "index": 11,
+    "dtype": "int64",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "cu_seq_lengths_kv",
+    "index": 12,
+    "dtype": "int64",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "seqused_q",
+    "index": 13,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "seqused_kv",
+    "index": 14,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "block_table",
+    "index": 15,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "attention_out",
+    "index": 0,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "softmax_lse",
+    "index": 1,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "attrs": [
+   {
+    "name": "block_shape",
+    "dtype": "list_int",
+    "value": []
+   },
+   {
+    "name": "layout_q",
+    "dtype": "str",
+    "value": ""
+   },
+   {
+    "name": "layout_kv",
+    "dtype": "str",
+    "value": ""
+   },
+   {
+    "name": "layout_sparse_pattern",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "scale_value",
+    "dtype": "float",
+    "value": 0.0
+   },
+   {
+    "name": "mask_type",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "quant_type",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "dst_type_max",
+    "dtype": "float",
+    "value": 0.0
+   },
+   {
+    "name": "softmax_precision",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "win_left",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "win_right",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "return_softmax_lse",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "residual_block_mode",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "is_consistent_topk",
+    "dtype": "bool",
+    "value": false
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/generic_block_sparse_attention/GenericBlockSparseAttention_cccc6712e5c103d68691cd5c5348953b.json"
+}

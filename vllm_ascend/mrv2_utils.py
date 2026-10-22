@@ -22,18 +22,15 @@ from typing import TYPE_CHECKING
 import vllm.envs as envs_vllm
 from vllm.logger import logger
 
-from vllm_ascend.device.device_config import is_310p
-
 if TYPE_CHECKING:
     from vllm.config import VllmConfig
 else:
     VllmConfig = None
 
 _NGRAM_SPEC_METHODS = frozenset({"ngram", "ngram_gpu"})
+_P_EAGLE_SPEC_METHODS = frozenset({"eagle", "eagle3"})
 _DFLASH2_ARCHITECTURES = frozenset({"DFlash2DraftModel"})
 _TRUTHY_STRINGS = frozenset({"1", "true", "yes"})
-# First matching prefix wins, so keep Hy3 ahead of Gemma4.
-_ARCH_PREFIXES = (("HYV3", "Hy3-preview"), ("Gemma4", "Gemma4"))
 
 
 def _is_configured(value: object) -> bool:
@@ -72,15 +69,8 @@ def _architectures(model_config: object) -> list[str]:
     return [name for name in names if isinstance(name, str)]
 
 
-def _blacklisted_architecture(model_config: object) -> str | None:
-    names = _architectures(model_config)
-    for prefix, label in _ARCH_PREFIXES:
-        if any(name.startswith(prefix) for name in names):
-            return label
-    return None
-
-
 def _is_dflash2_graph(speculative_config: object) -> bool:
+    """DFlash2 graph capture still fails on NPU; eager drafts stay on V2."""
     if getattr(speculative_config, "enforce_eager", False) is True:
         return False
     draft = getattr(speculative_config, "draft_model_config", None)
@@ -93,14 +83,7 @@ def _v2_blacklist(vllm_config: VllmConfig) -> list[str]:
     model_config = getattr(vllm_config, "model_config", None)
     spec_config = getattr(vllm_config, "speculative_config", None)
 
-    if is_310p():
-        reasons.append("310P")
-    if _is_configured(getattr(vllm_config, "lora_config", None)):
-        reasons.append("LoRA")
-
     if _is_configured(model_config):
-        if architecture := _blacklisted_architecture(model_config):
-            reasons.append(architecture)
         if (
             getattr(model_config, "runner_type", None) == "pooling"
             or getattr(model_config, "is_pooling_model", False) is True
@@ -120,8 +103,11 @@ def _v2_blacklist(vllm_config: VllmConfig) -> list[str]:
         reasons.append("VL encoder graph")
     if _additional(vllm_config, "draft_window_size") is not None:
         reasons.append("draft_window_size")
-    if _is_enabled(_additional(vllm_config, "enable_reduce_sample")):
-        reasons.append("enable_reduce_sample")
+    # V2 MTP draft pads the forward to the DP-wide request count, while eager
+    # attention metadata keeps this rank's request count. DSA-CP rejects that
+    # split once the hidden states outgrow the TP-aligned metadata.
+    if _is_enabled(_additional(vllm_config, "enable_dsa_cp")):
+        reasons.append("enable_dsa_cp")
 
     if _is_configured(spec_config):
         method = getattr(spec_config, "method", None)
@@ -129,10 +115,16 @@ def _v2_blacklist(vllm_config: VllmConfig) -> list[str]:
             reasons.append("suffix speculative decoding")
         if method in _NGRAM_SPEC_METHODS:
             reasons.append("ngram speculative decoding")
-        if getattr(spec_config, "parallel_drafting", False) is True:
-            reasons.append("parallel_drafting")
+        # V2 init_speculator has no draft_model branch. Parallel drafting with
+        # a separate draft model still runs on the V1 proposer.
+        if method == "draft_model":
+            reasons.append("draft_model speculative decoding")
         if _is_dflash2_graph(spec_config):
             reasons.append("dflash2 graph")
+        # V2 FULL capture builds attention metadata inside ACL graph GLOBAL
+        # capture. p-eagle reads NPU seq_lens there, and that copy is rejected.
+        if method in _P_EAGLE_SPEC_METHODS and getattr(spec_config, "parallel_drafting", False) is True:
+            reasons.append("p-eagle")
 
     return reasons
 
@@ -143,20 +135,17 @@ def use_v2_model_runner(vllm_config: VllmConfig) -> bool:
     ``VLLM_USE_V2_MODEL_RUNNER`` wins when set. Otherwise V2 is the default,
     except for these models and features, which fall back to V1:
 
-    * 310P
-    * Hy3-preview (``HYV3*``)
-    * Gemma4 (``Gemma4*``)
-    * LoRA
     * pooling KV (``runner_type="pooling"``)
     * encoder-decoder (Whisper)
     * VL encoder disaggregation (``ec_transfer_config`` / encoder-only)
     * VL encoder graph (``compilation_config.cudagraph_mm_encoder``)
     * draft_window_size
-    * enable_reduce_sample
+    * enable_dsa_cp
     * suffix speculative decoding
     * ngram speculative decoding (``ngram`` / ``ngram_gpu``)
-    * parallel_drafting
+    * draft_model speculative decoding
     * dflash2 graph (DFlash2 drafts without ``enforce_eager``)
+    * p-eagle (``eagle`` / ``eagle3`` with ``parallel_drafting``)
 
     Set ``VLLM_USE_V2_MODEL_RUNNER=0`` to force V1.
     """

@@ -1,0 +1,152 @@
+{
+  "binList": [
+    {
+      "implMode": "high_performance",
+      "int64Mode": false,
+      "simplifiedKeyMode": 0,
+      "simplifiedKey": [
+        "RmsNormCast/d=0,p=1/1,2/1,2/1,2/0,2",
+        "RmsNormCast/d=0,p=0/1,2/1,2/1,2/0,2",
+        "RmsNormCast/d=1,p=1/1,2/1,2/1,2/0,2",
+        "RmsNormCast/d=1,p=0/1,2/1,2/1,2/0,2"
+      ],
+      "staticKey": "6017d19fe5c4c6c0523ed9886222cb28c86cb6c0148af960aa21ee24b0abd217,e8d4d832c73e0aea978bdb98d0f6eab1c2b8796a41573ccba45fd8a63ba8c569",
+      "inputs": [
+        {
+          "name": "x",
+          "index": 0,
+          "dtype": "float16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "gamma",
+          "index": 1,
+          "dtype": "float16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "index": 0,
+          "dtype": "float16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "y_fp32",
+          "index": 1,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "attrs": [
+        {
+          "name": "epsilon",
+          "dtype": "float",
+          "value": 0.0
+        }
+      ],
+      "opMode": "dynamic",
+      "optionalInputMode": "gen_placeholder",
+      "deterministic": "ignore",
+      "optionalOutputMode": "gen_placeholder",
+      "binInfo": {
+        "jsonFilePath": "ascend910_93/rms_norm_cast/RmsNormCast_31a75964b586fe2000d8729d7889a579.json"
+      }
+    },
+    {
+      "implMode": "high_performance",
+      "int64Mode": false,
+      "simplifiedKeyMode": 0,
+      "simplifiedKey": [
+        "RmsNormCast/d=0,p=1/27,2/27,2/27,2/0,2",
+        "RmsNormCast/d=0,p=0/27,2/27,2/27,2/0,2",
+        "RmsNormCast/d=1,p=1/27,2/27,2/27,2/0,2",
+        "RmsNormCast/d=1,p=0/27,2/27,2/27,2/0,2"
+      ],
+      "staticKey": "75e7449232482d55831cc0689bc2a7b52270d9c4d4a5d223a33fef34dccab58c,1223b56c16910e150aefe127b0214b9307c9cbe287f124852c3811f5651a8c0a",
+      "inputs": [
+        {
+          "name": "x",
+          "index": 0,
+          "dtype": "bfloat16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "gamma",
+          "index": 1,
+          "dtype": "bfloat16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "index": 0,
+          "dtype": "bfloat16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "y_fp32",
+          "index": 1,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "attrs": [
+        {
+          "name": "epsilon",
+          "dtype": "float",
+          "value": 0.0
+        }
+      ],
+      "opMode": "dynamic",
+      "optionalInputMode": "gen_placeholder",
+      "deterministic": "ignore",
+      "optionalOutputMode": "gen_placeholder",
+      "binInfo": {
+        "jsonFilePath": "ascend910_93/rms_norm_cast/RmsNormCast_d1e2827a0784e1b5bec4b3178e42d92d.json"
+      }
+    }
+  ]
+}

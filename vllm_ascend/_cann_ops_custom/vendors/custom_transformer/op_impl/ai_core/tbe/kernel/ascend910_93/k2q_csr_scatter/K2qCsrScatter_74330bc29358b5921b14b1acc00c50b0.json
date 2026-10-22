@@ -1,0 +1,140 @@
+{
+ "binFileName": "K2qCsrScatter_74330bc29358b5921b14b1acc00c50b0",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "VectorCore",
+ "core_type": "AIV",
+ "intercoreSync": 0,
+ "kernelName": "K2qCsrScatter_74330bc29358b5921b14b1acc00c50b0",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF_AIVEC",
+ "memoryStamping": [],
+ "opParaSize": 160,
+ "parameters": [
+  null,
+  null,
+  null,
+  null,
+  null,
+  null
+ ],
+ "sha256": "2e94440cf3efe79fa1d912b9d97dcb3c58d0e1b464461bbf7ab467fda5efb885",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "kernelName": "K2qCsrScatter_74330bc29358b5921b14b1acc00c50b0_0"
+  }
+ ],
+ "optionalInputMode": "gen_placeholder",
+ "optionalOutputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "compileInfo": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "K2qCsrScatter/d=0,p=1/3,2/3,2/3,2/3,2/3,2",
+   "K2qCsrScatter/d=0,p=0/3,2/3,2/3,2/3,2/3,2",
+   "K2qCsrScatter/d=1,p=1/3,2/3,2/3,2/3,2/3,2",
+   "K2qCsrScatter/d=1,p=0/3,2/3,2/3,2/3,2/3,2"
+  ],
+  "optionalInputMode": "gen_placeholder",
+  "optionalOutputMode": "gen_placeholder",
+  "staticKey": "04929288a3114324a5e6e2ccc6ee6d417b26b93e8d7e3e14fd6acba4279e9986,f298ce1fb391186f3d5312c8f2dd0a3a0b40e169035f50e4b194dbeb9269ad1a",
+  "inputs": [
+   {
+    "name": "q2k",
+    "index": 0,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "cu_seqlens",
+    "index": 1,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "scratch",
+    "index": 2,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "q_ind",
+    "index": 0,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "slot",
+    "index": 1,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "attrs": [
+   {
+    "name": "total_rows",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "max_kv",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "use_simt",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "q_global_offset",
+    "dtype": "int",
+    "value": 0
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/k2q_csr_scatter/K2qCsrScatter_74330bc29358b5921b14b1acc00c50b0.json"
+}

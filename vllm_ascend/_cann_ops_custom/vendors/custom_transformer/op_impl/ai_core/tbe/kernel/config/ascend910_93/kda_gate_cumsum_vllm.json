@@ -1,0 +1,319 @@
+{
+  "binList": [
+    {
+      "implMode": "high_performance",
+      "int64Mode": false,
+      "simplifiedKeyMode": 0,
+      "simplifiedKey": [
+        "KdaGateCumsumVllm/d=0,p=1/0,2/0,2",
+        "KdaGateCumsumVllm/d=0,p=0/0,2/0,2",
+        "KdaGateCumsumVllm/d=1,p=1/0,2/0,2",
+        "KdaGateCumsumVllm/d=1,p=0/0,2/0,2"
+      ],
+      "staticKey": "3a6f1d6b101a5fd4795e9e3c30b41969d55e4bf245e035fa6621c6b681b8fa11,84d69e09f3d6575e88bc0949aa3fe5dfc6955d43cd1c9c002e5ea22f688a24c0",
+      "inputs": [
+        {
+          "name": "g",
+          "index": 0,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "a_log",
+          "index": 1,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "dt_bias",
+          "index": 2,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "cu_seqlens",
+          "index": 3,
+          "dtype": "int64",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "gk",
+          "index": 0,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "attrs": [
+        {
+          "name": "chunk_size",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "use_gate_in_kernel",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "safe_gate",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "lower_bound",
+          "dtype": "float",
+          "value": 0.0
+        },
+        {
+          "name": "layout",
+          "dtype": "str",
+          "value": ""
+        }
+      ],
+      "opMode": "dynamic",
+      "optionalInputMode": "gen_placeholder",
+      "deterministic": "ignore",
+      "optionalOutputMode": "gen_placeholder",
+      "binInfo": {
+        "jsonFilePath": "ascend910_93/kda_gate_cumsum_vllm/KdaGateCumsumVllm_09a9086833ffa6cc8470ed5f74bf586b.json"
+      }
+    },
+    {
+      "implMode": "high_performance",
+      "int64Mode": false,
+      "simplifiedKeyMode": 0,
+      "simplifiedKey": [
+        "KdaGateCumsumVllm/d=0,p=1/27,2/0,2",
+        "KdaGateCumsumVllm/d=0,p=0/27,2/0,2",
+        "KdaGateCumsumVllm/d=1,p=1/27,2/0,2",
+        "KdaGateCumsumVllm/d=1,p=0/27,2/0,2"
+      ],
+      "staticKey": "355038aef294783e700d8eb95783f218cc0dad9a6d683e3126d0beb292a4f958,28ede4aea7d7059adbebf9a4320bcb092ed8c256cc7cb3818a7ad591d2aa63c8",
+      "inputs": [
+        {
+          "name": "g",
+          "index": 0,
+          "dtype": "bfloat16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "a_log",
+          "index": 1,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "dt_bias",
+          "index": 2,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "cu_seqlens",
+          "index": 3,
+          "dtype": "int64",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "gk",
+          "index": 0,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "attrs": [
+        {
+          "name": "chunk_size",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "use_gate_in_kernel",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "safe_gate",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "lower_bound",
+          "dtype": "float",
+          "value": 0.0
+        },
+        {
+          "name": "layout",
+          "dtype": "str",
+          "value": ""
+        }
+      ],
+      "opMode": "dynamic",
+      "optionalInputMode": "gen_placeholder",
+      "deterministic": "ignore",
+      "optionalOutputMode": "gen_placeholder",
+      "binInfo": {
+        "jsonFilePath": "ascend910_93/kda_gate_cumsum_vllm/KdaGateCumsumVllm_215f034414bbe915e9c011a218b2fca8.json"
+      }
+    },
+    {
+      "implMode": "high_performance",
+      "int64Mode": false,
+      "simplifiedKeyMode": 0,
+      "simplifiedKey": [
+        "KdaGateCumsumVllm/d=0,p=1/1,2/0,2",
+        "KdaGateCumsumVllm/d=0,p=0/1,2/0,2",
+        "KdaGateCumsumVllm/d=1,p=1/1,2/0,2",
+        "KdaGateCumsumVllm/d=1,p=0/1,2/0,2"
+      ],
+      "staticKey": "7104365c3b8ba36c97fa74229980ff5fc229a6ed8348a7c5a75133cbcb63fe66,0f54993611828115b86382999bf942c1cf8b34a09eaf61031127ba5ea78f68e1",
+      "inputs": [
+        {
+          "name": "g",
+          "index": 0,
+          "dtype": "float16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "a_log",
+          "index": 1,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "dt_bias",
+          "index": 2,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "cu_seqlens",
+          "index": 3,
+          "dtype": "int64",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "gk",
+          "index": 0,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "attrs": [
+        {
+          "name": "chunk_size",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "use_gate_in_kernel",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "safe_gate",
+          "dtype": "bool",
+          "value": false
+        },
+        {
+          "name": "lower_bound",
+          "dtype": "float",
+          "value": 0.0
+        },
+        {
+          "name": "layout",
+          "dtype": "str",
+          "value": ""
+        }
+      ],
+      "opMode": "dynamic",
+      "optionalInputMode": "gen_placeholder",
+      "deterministic": "ignore",
+      "optionalOutputMode": "gen_placeholder",
+      "binInfo": {
+        "jsonFilePath": "ascend910_93/kda_gate_cumsum_vllm/KdaGateCumsumVllm_de6080af79bd90e44568bb9845569393.json"
+      }
+    }
+  ]
+}

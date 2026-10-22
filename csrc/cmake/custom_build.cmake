@@ -705,6 +705,7 @@ if (BUILD_OPEN_PROJECT)
                 ${OP_BUILD_TOOL}
                 $<TARGET_FILE:op_host_aclnnExc>
                 ${base_aclnn_binary_dir}/exc
+                DEPENDS op_host_aclnnExc
         )
     endif ()
 
@@ -738,9 +739,7 @@ foreach (_op_name ${OP_LIST})
     )
 endforeach ()
 
-install(DIRECTORY ${OPS_ADV_UTILS_KERNEL_INC}/
-        DESTINATION ${IMPL_INSTALL_DIR}/ascendc/common
-)
+install_common_kernel_headers("${IMPL_INSTALL_DIR}/ascendc/common")
 
 # install(DIRECTORY ${OPS_ADV_DIR}/mc2/common/inc/kernel
 #         DESTINATION ${IMPL_INSTALL_DIR}/ascendc/common/inc

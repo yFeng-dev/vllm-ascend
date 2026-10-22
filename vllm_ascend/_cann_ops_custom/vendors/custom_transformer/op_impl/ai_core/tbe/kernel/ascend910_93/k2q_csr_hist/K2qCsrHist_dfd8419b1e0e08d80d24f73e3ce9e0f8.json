@@ -1,0 +1,116 @@
+{
+ "binFileName": "K2qCsrHist_dfd8419b1e0e08d80d24f73e3ce9e0f8",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "VectorCore",
+ "core_type": "AIV",
+ "intercoreSync": 0,
+ "kernelName": "K2qCsrHist_dfd8419b1e0e08d80d24f73e3ce9e0f8",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF_AIVEC",
+ "memoryStamping": [],
+ "opParaSize": 160,
+ "parameters": [
+  null,
+  null,
+  null,
+  null
+ ],
+ "sha256": "18d1e8c8386ac36dac36a29fcc4852c713a03507c22e2aaf55a2c2075dde5b36",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "kernelName": "K2qCsrHist_dfd8419b1e0e08d80d24f73e3ce9e0f8_0"
+  }
+ ],
+ "optionalInputMode": "gen_placeholder",
+ "optionalOutputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "compileInfo": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "K2qCsrHist/d=0,p=1/3,2/3,2/3,2",
+   "K2qCsrHist/d=0,p=0/3,2/3,2/3,2",
+   "K2qCsrHist/d=1,p=1/3,2/3,2/3,2",
+   "K2qCsrHist/d=1,p=0/3,2/3,2/3,2"
+  ],
+  "optionalInputMode": "gen_placeholder",
+  "optionalOutputMode": "gen_placeholder",
+  "staticKey": "2f6044542223e44d418bda39a416e7f8e1a3b32510cbb6dce4e252ecae9ebcc1,4f4022cb1a980608999f780f40a707c1791c40bfab919127981a8e9a72287ac8",
+  "inputs": [
+   {
+    "name": "q2k",
+    "index": 0,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "scratch",
+    "index": 1,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "scratch",
+    "index": 0,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "attrs": [
+   {
+    "name": "total_rows",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "max_kv",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "use_simt",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "batch",
+    "dtype": "int",
+    "value": 0
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/k2q_csr_hist/K2qCsrHist_dfd8419b1e0e08d80d24f73e3ce9e0f8.json"
+}
