@@ -268,6 +268,7 @@ from vllm_ascend.worker.device_metadata import (
 )
 from vllm_ascend.worker.kvpp_cache import allocate_kvpp_cache
 from vllm_ascend.worker.npu_input_batch import NPUInputBatch
+from vllm_ascend.worker.qsa_private_cache import make_private_qsa_views
 from vllm_ascend.worker.utils import (
     AscendKVBlockZeroer,
     copy_kv_cache_blocks_inplace,
@@ -6113,6 +6114,23 @@ class NPUModelRunner(GPUModelRunner):
                     group_kernel_block_size or current_kv_cache_spec.block_size
                 )
 
+                if (
+                    six_region_layout is None
+                    and not uses_page_strided_shared_backing
+                    and isinstance(current_kv_cache_spec, AttentionSpec)
+                    and (
+                        getattr(attn_backend, "uses_qsa_page_major_kv_view", False)
+                        or self._uses_unified_attention_cache_view(attn_backend)
+                    )
+                ):
+                    kv_caches[layer_name] = make_private_qsa_views(
+                        self,
+                        kv_cache_raw_tensors[layer_name],
+                        current_kv_cache_spec,
+                        kv_cache_config.num_blocks,
+                        attn_backend,
+                    )
+                    continue
                 if self._is_c8_mxfp_kv_cache(current_kv_cache_spec):
                     raw = kv_cache_raw_tensors[layer_name]
                     if not isinstance(raw, torch.Tensor):
