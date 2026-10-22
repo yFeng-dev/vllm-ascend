@@ -165,7 +165,6 @@ from vllm_ascend.core.six_region_kv_cache_layout import (
     QSA_MAIN,
     QSA_RAW,
     build_six_region_kv_cache_layout,
-    make_contiguous_slab_view,
 )
 from vllm_ascend.device.hardware_profile import HardwareCapability, get_current_hardware_profile
 from vllm_ascend.distributed.kv_transfer.kv_p2p.sfa_pd_rd2h import get_prebound_copy_sfa_slots
@@ -440,6 +439,16 @@ class NPUModelRunner(GPUModelRunner):
     # physical allocation. The runner materializes those views without
     # multiplying the backing once per descriptor/layer.
     supports_page_strided_shared_kv_backing = True
+
+    @property
+    def supports_six_region_kv_backing(self) -> bool:
+        """Only Mooncake V2 consumes the physical strides of shared PD views."""
+        transfer = self.vllm_config.kv_transfer_config
+        return (
+            not vllm_version_is("0.28.0")
+            and self.ascend_config.kvpp_config.size == 1
+            and (transfer is None or transfer.kv_connector == "MooncakeConnectorV2")
+        )
 
     def __init__(self, vllm_config: VllmConfig, device: torch.device):
         self.decoder_replay: AscendDecoderReplayLayers | None = None
@@ -5611,8 +5620,8 @@ class NPUModelRunner(GPUModelRunner):
                 and not requires_contiguous_pa_kv_cache(attn_layers.get(layer_name), self.vllm_config, spec)
             }
 
-        # Match the worker's block-outermost cache budget policy: shared
-        # backing is supported only when KV transfer is disabled.
+        # Other shared layouts retain their existing no-transfer restriction.
+        # Six-region PD is gated separately by the connector's stride support.
         supports_shared_backing_with_kv_transfer = self.vllm_config.kv_transfer_config is None
 
         six_region_layout = (
@@ -5627,7 +5636,7 @@ class NPUModelRunner(GPUModelRunner):
             six_region_layout is not None
             and not is_dsv4_main
             and not uses_padded_page_layout
-            and supports_shared_backing_with_kv_transfer
+            and self.supports_six_region_kv_backing
         )
         self._six_region_kv_cache_layout = (
             six_region_layout if uses_six_region_layout else None
@@ -5655,6 +5664,14 @@ class NPUModelRunner(GPUModelRunner):
             for owner in six_region_layout.owners:
                 if owner.role != HIDDEN:
                     kv_cache_raw_tensors[owner.layer_name] = backing
+            logger.info(
+                "Runner V1 allocated six-region KV backing: slots=%d, blocks=%d, "
+                "bytes=%d, regions=%s",
+                six_region_layout.slot_count,
+                six_region_layout.num_blocks,
+                backing.numel(),
+                [(r.name, r.offset, r.page_size_bytes) for r in six_region_layout.regions],
+            )
 
         if uses_page_strided_shared_backing:
             backing_sizes = {
@@ -6048,6 +6065,53 @@ class NPUModelRunner(GPUModelRunner):
         return reshaped_kv_tensors
 
 
+    @staticmethod
+    def _make_six_region_layer_views(layout, owner, raw_slab):
+        """Preserve slab page strides, including padding and aligned raw offsets."""
+        spec = owner.spec
+        if owner.role == QSA_MAIN:
+            components = (
+                ("r2", (spec.block_size, spec.num_kv_heads, spec.head_size), spec.dtype),
+                ("r3", (spec.block_size, spec.num_kv_heads, spec.head_size_v), spec.dtype),
+            )
+        elif owner.role in (QSA_RAW, QSA_COMPRESSED):
+            components = (
+                (
+                    "r4" if owner.role == QSA_RAW else "r5",
+                    (spec.num_heads, spec.num_states, spec.state_content_size_bytes // get_dtype_size(spec.dtype)),
+                    spec.dtype,
+                ),
+            )
+        elif owner.role in (GDN, PLE):
+            regions = ("r1", "r2") if owner.role == GDN else ("r6",)
+            components = tuple(zip(regions, spec.shapes, spec.dtypes, strict=True))
+        else:
+            raise ValueError(f"Unsupported six-region owner {owner}")
+        views = []
+        for region_name, shape, dtype in components:
+            region = layout.region(region_name)
+            payload_bytes = math.prod(shape) * get_dtype_size(dtype)
+            offset = owner.slot * layout.slot_backing_size + region.offset
+            if payload_bytes > region.page_size_bytes:
+                raise ValueError(f"Six-region payload exceeds its page for {owner.layer_name}")
+            required_bytes = (layout.num_blocks - 1) * region.page_size_bytes + payload_bytes
+            if offset + required_bytes > raw_slab.numel():
+                raise ValueError(f"Six-region view exceeds its backing for {owner.layer_name}")
+            views.append(
+                make_page_strided_cache_view(
+                    raw_slab,
+                    (layout.num_blocks, *shape),
+                    dtype,
+                    region.page_size_bytes,
+                    offset,
+                )
+            )
+        if owner.role == QSA_MAIN:
+            return tuple(views)
+        if owner.role in (GDN, PLE):
+            return views
+        return views[0]
+
     def _reshape_kv_cache_tensors(
         self,
         kv_cache_config: KVCacheConfig,
@@ -6190,128 +6254,11 @@ class NPUModelRunner(GPUModelRunner):
                         continue
                 if six_region_layout is not None:
                     owner = six_region_layout.owner(layer_name)
-                    raw_slab = kv_cache_raw_tensors[layer_name]
-                    assert isinstance(raw_slab, torch.Tensor)
-                    slot_offset = (
-                        owner.slot * six_region_layout.slot_backing_size
-                    )
-                    if owner.role == QSA_MAIN:
-                        assert isinstance(
-                            current_kv_cache_spec,
-                            FullAttentionSpec,
-                        )
-                        k_cache = make_contiguous_slab_view(
-                            raw_slab,
-                            dtype=current_kv_cache_spec.dtype,
-                            num_blocks=kv_cache_config.num_blocks,
-                            item_shape=(
-                                current_kv_cache_spec.block_size,
-                                current_kv_cache_spec.num_kv_heads,
-                                current_kv_cache_spec.head_size,
-                            ),
-                            storage_offset=(
-                                slot_offset
-                                + six_region_layout.region("r2").offset
-                            ),
-                        )
-                        v_cache = make_contiguous_slab_view(
-                            raw_slab,
-                            dtype=current_kv_cache_spec.dtype,
-                            num_blocks=kv_cache_config.num_blocks,
-                            item_shape=(
-                                current_kv_cache_spec.block_size,
-                                current_kv_cache_spec.num_kv_heads,
-                                current_kv_cache_spec.head_size_v,
-                            ),
-                            storage_offset=(
-                                slot_offset
-                                + six_region_layout.region("r3").offset
-                            ),
-                        )
-                        kv_caches[layer_name] = (k_cache, v_cache)
-                        continue
-                    if owner.role in (QSA_RAW, QSA_COMPRESSED):
-                        assert isinstance(
-                            current_kv_cache_spec,
-                            AttentionSpec,
-                        )
-                        # ``tokens_per_state`` is the compressed cache's
-                        # physical row ratio on current vLLM.  The optional
-                        # ``storage_block_size`` field is a view override and
-                        # is normally unset for QSA, so the generic helper
-                        # would incorrectly return the logical 768-token
-                        # scheduler block instead of its 192 stored states.
-                        storage_block_size = (
-                            current_kv_cache_spec.block_size
-                            if owner.role == QSA_RAW
-                            else current_kv_cache_spec.num_states
-                        )
-                        region = six_region_layout.region(
-                            "r4" if owner.role == QSA_RAW else "r5"
-                        )
-                        expected_page_bytes = (
-                            storage_block_size
-                            * current_kv_cache_spec.num_kv_heads
-                            * current_kv_cache_spec.head_size
-                            * get_dtype_size(current_kv_cache_spec.dtype)
-                        )
-                        if expected_page_bytes != region.page_size_bytes:
-                            raise ValueError(
-                                f"{layer_name} six-region page mismatch: "
-                                f"view={expected_page_bytes}, "
-                                f"region={region.page_size_bytes}."
-                            )
-                        kv_caches[layer_name] = make_contiguous_slab_view(
-                            raw_slab,
-                            dtype=current_kv_cache_spec.dtype,
-                            num_blocks=kv_cache_config.num_blocks,
-                            item_shape=(
-                                current_kv_cache_spec.num_kv_heads,
-                                storage_block_size,
-                                current_kv_cache_spec.head_size,
-                            ),
-                            storage_offset=slot_offset + region.offset,
-                        )
-                        continue
-                    if owner.role in (GDN, PLE):
-                        assert isinstance(current_kv_cache_spec, MambaSpec)
-                        region_names = {
-                            GDN: ("r1", "r2"),
-                            PLE: ("r6",),
-                        }[owner.role]
-                        if len(region_names) != len(
-                            current_kv_cache_spec.shapes
-                        ):
-                            raise RuntimeError(
-                                "Invalid six-region Mamba role/shape for "
-                                f"{layer_name}: role={owner.role}, "
-                                f"shapes={current_kv_cache_spec.shapes}."
-                            )
-                        kv_caches[layer_name] = [
-                            make_contiguous_slab_view(
-                                raw_slab,
-                                dtype=dtype,
-                                num_blocks=kv_cache_config.num_blocks,
-                                item_shape=tuple(shape),
-                                storage_offset=(
-                                    slot_offset
-                                    + six_region_layout.region(
-                                        region_name
-                                    ).offset
-                                ),
-                            )
-                            for shape, dtype, region_name in zip(
-                                current_kv_cache_spec.shapes,
-                                current_kv_cache_spec.dtypes,
-                                region_names,
-                                strict=True,
-                            )
-                        ]
-                        continue
                     if owner.role != HIDDEN:
-                        raise RuntimeError(
-                            f"Unsupported six-region owner {owner}."
+                        kv_caches[layer_name] = self._make_six_region_layer_views(
+                            six_region_layout, owner, kv_cache_raw_tensors[layer_name]
                         )
+                        continue
 
                 packed_descriptor = packed_descriptors.get(layer_name)
                 if (
