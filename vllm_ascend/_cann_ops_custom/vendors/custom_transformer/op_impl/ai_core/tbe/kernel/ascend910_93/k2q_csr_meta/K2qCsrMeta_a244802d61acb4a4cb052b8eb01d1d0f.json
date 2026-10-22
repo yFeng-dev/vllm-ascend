@@ -1,0 +1,138 @@
+{
+ "binFileName": "K2qCsrMeta_a244802d61acb4a4cb052b8eb01d1d0f",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "VectorCore",
+ "core_type": "AIV",
+ "intercoreSync": 0,
+ "kernelName": "K2qCsrMeta_a244802d61acb4a4cb052b8eb01d1d0f",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF_AIVEC",
+ "memoryStamping": [],
+ "opParaSize": 160,
+ "parameters": [
+  null,
+  null,
+  null,
+  null,
+  null
+ ],
+ "sha256": "fc1e9e8131c4a841e009154ad2c7334e36963100efa058284df6f5a33d9838a1",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "kernelName": "K2qCsrMeta_a244802d61acb4a4cb052b8eb01d1d0f_0"
+  }
+ ],
+ "optionalInputMode": "gen_placeholder",
+ "optionalOutputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "compileInfo": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "K2qCsrMeta/d=0,p=1/3,2/3,2/3,2/3,2",
+   "K2qCsrMeta/d=0,p=0/3,2/3,2/3,2/3,2",
+   "K2qCsrMeta/d=1,p=1/3,2/3,2/3,2/3,2",
+   "K2qCsrMeta/d=1,p=0/3,2/3,2/3,2/3,2"
+  ],
+  "optionalInputMode": "gen_placeholder",
+  "optionalOutputMode": "gen_placeholder",
+  "staticKey": "e731dd18148234c6979244fe7dacdad15124719b882c624d0e44bce97f4e1f6a,7618a4c92a16163a4e28d7165303aab8766d112d907af143132f544bf2367740",
+  "inputs": [
+   {
+    "name": "cu_seqlens",
+    "index": 0,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "cu_block_lens",
+    "index": 1,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "scratch",
+    "index": 2,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "scratch",
+    "index": 0,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "attrs": [
+   {
+    "name": "order_method",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "total_rows",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "max_kv",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "num_heads",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "num_tokens",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "topk",
+    "dtype": "int",
+    "value": 0
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/k2q_csr_meta/K2qCsrMeta_a244802d61acb4a4cb052b8eb01d1d0f.json"
+}

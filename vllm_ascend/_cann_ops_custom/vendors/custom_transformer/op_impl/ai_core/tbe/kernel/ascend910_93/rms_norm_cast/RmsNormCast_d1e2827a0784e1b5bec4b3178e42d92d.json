@@ -1,0 +1,116 @@
+{
+ "binFileName": "RmsNormCast_d1e2827a0784e1b5bec4b3178e42d92d",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "VectorCore",
+ "core_type": "AIV",
+ "intercoreSync": 0,
+ "kernelName": "RmsNormCast_d1e2827a0784e1b5bec4b3178e42d92d",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF_AIVEC",
+ "memoryStamping": [],
+ "opParaSize": 32,
+ "parameters": [
+  null,
+  null,
+  null,
+  null,
+  null
+ ],
+ "sha256": "ee5653911dc1fe8b60b11e0376a072d9294e54ec0b37acb29b1d75ee05d2cad3",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "kernelName": "RmsNormCast_d1e2827a0784e1b5bec4b3178e42d92d_1"
+  },
+  {
+   "kernelName": "RmsNormCast_d1e2827a0784e1b5bec4b3178e42d92d_3"
+  }
+ ],
+ "optionalInputMode": "gen_placeholder",
+ "optionalOutputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "compileInfo": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "RmsNormCast/d=0,p=1/27,2/27,2/27,2/0,2",
+   "RmsNormCast/d=0,p=0/27,2/27,2/27,2/0,2",
+   "RmsNormCast/d=1,p=1/27,2/27,2/27,2/0,2",
+   "RmsNormCast/d=1,p=0/27,2/27,2/27,2/0,2"
+  ],
+  "optionalInputMode": "gen_placeholder",
+  "optionalOutputMode": "gen_placeholder",
+  "staticKey": "75e7449232482d55831cc0689bc2a7b52270d9c4d4a5d223a33fef34dccab58c,1223b56c16910e150aefe127b0214b9307c9cbe287f124852c3811f5651a8c0a",
+  "inputs": [
+   {
+    "name": "x",
+    "index": 0,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "gamma",
+    "index": 1,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "y",
+    "index": 0,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "y_fp32",
+    "index": 1,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "attrs": [
+   {
+    "name": "epsilon",
+    "dtype": "float",
+    "value": 0.0
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/rms_norm_cast/RmsNormCast_d1e2827a0784e1b5bec4b3178e42d92d.json"
+}

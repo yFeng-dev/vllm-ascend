@@ -28,6 +28,9 @@ class AscendDSparkProposer(AscendDflashProposer):
     anchor-first query block emits all speculative tokens.
     """
 
+    def uses_per_group_kernel_block_sizes(self) -> bool:
+        return True
+
     def __init__(
         self,
         vllm_config: VllmConfig,
@@ -186,6 +189,11 @@ class AscendDSparkProposer(AscendDflashProposer):
             for attn_group in self.draft_attn_groups:
                 builder = attn_group.get_metadata_builder()
                 if isinstance(builder, AscendDSAMetadataBuilder):
+                    # Register the exact per-request query count first so the
+                    # buffer quota and the triton capacity grid agree: anchor
+                    # sampling drafts spec queries per request, the non-anchor
+                    # path drafts spec+1.
+                    builder.set_dspark_num_query_per_req(self.num_query_per_req)
                     builder.enable_dspark_device_metadata(self.max_query_tokens)
                 else:
                     from vllm_ascend.attention.dsa_v41 import AscendDSAV41MetadataBuilder
@@ -356,6 +364,12 @@ class AscendDSparkProposer(AscendDflashProposer):
 
         return num_query_total, token_indices_to_sample, cad, long_seq_args
 
+    def _clear_dummy_slot_mappings(self) -> None:
+        for buf in self._per_group_query_slot_mapping_buffers.values():
+            buf.fill_(-1)
+        for buf in self._per_group_context_slot_mapping_buffers.values():
+            buf.fill_(-1)
+
     @torch.inference_mode()
     def dummy_run(
         self,
@@ -384,7 +398,7 @@ class AscendDSparkProposer(AscendDflashProposer):
         context_states = self.hidden_states[:num_input_tokens]
 
         self.token_indices_to_sample.fill_(0)
-        self._pad_draft_buffers(num_query_total, num_input_tokens)
+        self._clear_dummy_slot_mappings()
 
         with set_ascend_forward_context(
             None,

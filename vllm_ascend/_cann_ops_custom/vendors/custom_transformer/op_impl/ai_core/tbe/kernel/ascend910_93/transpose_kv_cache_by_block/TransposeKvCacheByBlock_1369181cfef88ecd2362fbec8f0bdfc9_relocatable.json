@@ -1,0 +1,207 @@
+{
+ "binFileName": "TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "MIX",
+ "intercoreSync": 1,
+ "kernelName": "TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF",
+ "memoryStamping": [],
+ "opParaSize": 80,
+ "parameters": [
+  null,
+  null,
+  null,
+  null
+ ],
+ "sha256": "3fa07196f3d2c84b815def7b4e5e02110f00f197b3fcf209de9ed158e03c728b",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "tilingKey": 0,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "0:1",
+   "kernelName": "TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable_0"
+  },
+  {
+   "tilingKey": 1,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "0:1",
+   "kernelName": "TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable_1"
+  },
+  {
+   "tilingKey": 2,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "0:1",
+   "kernelName": "TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable_2"
+  },
+  {
+   "tilingKey": 3,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "0:1",
+   "kernelName": "TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable_3"
+  },
+  {
+   "tilingKey": 4,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "0:1",
+   "kernelName": "TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable_4"
+  }
+ ],
+ "taskRation": "tilingKey",
+ "optionalInputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "sub_operator_op_type": "TransposeKvCacheByBlock",
+ "sub_operator_params": [
+  "ffts_addr",
+  "KCache_in__",
+  "VCache_in__",
+  "blockIDs_in__",
+  "workspace",
+  "tiling"
+ ],
+ "sub_operator_kernel_type": "KERNEL_TYPE_MIX_AIC_1_2",
+ "sub_operator_kernel_name": {
+  "dynamic_func_names": {
+   "0": {
+    "dav-c220-vec": "TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable_0_mix_aiv",
+    "kernel_type": "KERNEL_TYPE_MIX_AIV_1_0"
+   },
+   "1": {
+    "dav-c220-vec": "TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable_1_mix_aiv",
+    "kernel_type": "KERNEL_TYPE_MIX_AIV_1_0"
+   },
+   "2": {
+    "dav-c220-vec": "TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable_2_mix_aiv",
+    "kernel_type": "KERNEL_TYPE_MIX_AIV_1_0"
+   },
+   "3": {
+    "dav-c220-vec": "TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable_3_mix_aiv",
+    "kernel_type": "KERNEL_TYPE_MIX_AIV_1_0"
+   },
+   "4": {
+    "dav-c220-vec": "TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable_4_mix_aiv",
+    "kernel_type": "KERNEL_TYPE_MIX_AIV_1_0"
+   }
+  }
+ },
+ "sub_operator_early_start_set_flag": false,
+ "sub_operator_early_start_wait_flag": false,
+ "sub_operator_call_dcci_before_kernel_start": true,
+ "sub_operator_call_dcci_after_kernel_end": true,
+ "sub_operator_call_dcci_disable_on_kernel": false,
+ "sub_op_with_sync_all": false,
+ "compileInfo": {},
+ "dynamicParamMode": "folded_with_desc",
+ "feature_list": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "TransposeKvCacheByBlock/d=0,p=1/27,2/27,2/9,2",
+   "TransposeKvCacheByBlock/d=0,p=0/27,2/27,2/9,2",
+   "TransposeKvCacheByBlock/d=1,p=1/27,2/27,2/9,2",
+   "TransposeKvCacheByBlock/d=1,p=0/27,2/27,2/9,2"
+  ],
+  "dynamicParamMode": "folded_with_desc",
+  "optionalInputMode": "gen_placeholder",
+  "staticKey": "5e97ef258a60b8d00961116e8509de95d1d5b332aef52a5249b9061d6b9a1473,64bfdfb0a6155f45cfed29096005fa45d173b30c52067f01947d2b7fcf17e2ff",
+  "inputs": [
+   [
+    {
+     "name": "KCache",
+     "index": 0,
+     "dtype": "bfloat16",
+     "format": "ND",
+     "paramType": "dynamic",
+     "shape": [
+      -2
+     ],
+     "format_match_mode": "FormatAgnostic"
+    }
+   ],
+   [
+    {
+     "name": "VCache",
+     "index": 1,
+     "dtype": "bfloat16",
+     "format": "ND",
+     "paramType": "dynamic",
+     "shape": [
+      -2
+     ],
+     "format_match_mode": "FormatAgnostic"
+    }
+   ],
+   {
+    "name": "blockIDs",
+    "index": 2,
+    "dtype": "int64",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [],
+  "attrs": [
+   {
+    "name": "blockSize",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "headNum",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "headDim",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "splitNum",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "layerNum",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "kBlockStride",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "vBlockStride",
+    "dtype": "int",
+    "value": 0
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/transpose_kv_cache_by_block/TransposeKvCacheByBlock_1369181cfef88ecd2362fbec8f0bdfc9_relocatable.json"
+}

@@ -1,0 +1,119 @@
+{
+ "binFileName": "K2qCsrRowPrefix_a4861e10541be14cc1e79f84c3a0215c",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "VectorCore",
+ "core_type": "AIV",
+ "intercoreSync": 0,
+ "kernelName": "K2qCsrRowPrefix_a4861e10541be14cc1e79f84c3a0215c",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF_AIVEC",
+ "memoryStamping": [],
+ "opParaSize": 160,
+ "parameters": [
+  null,
+  null,
+  null
+ ],
+ "sha256": "724a075c9bb2ab3c7ea586eb6c344a2149c02600999417d75021330067ea6ba4",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "kernelName": "K2qCsrRowPrefix_a4861e10541be14cc1e79f84c3a0215c_0"
+  }
+ ],
+ "optionalInputMode": "gen_placeholder",
+ "optionalOutputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "compileInfo": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "K2qCsrRowPrefix/d=0,p=1/3,2/3,2",
+   "K2qCsrRowPrefix/d=0,p=0/3,2/3,2",
+   "K2qCsrRowPrefix/d=1,p=1/3,2/3,2",
+   "K2qCsrRowPrefix/d=1,p=0/3,2/3,2"
+  ],
+  "optionalInputMode": "gen_placeholder",
+  "optionalOutputMode": "gen_placeholder",
+  "staticKey": "4d31fab3e6aa7a9479709c021c8602fd4ba34bb8a93b4857a609137c533c9277,1a6ef5bbe8f81de406384cd12dfa9c484deca14a05ef773b0d188004e94fe704",
+  "inputs": [
+   {
+    "name": "scratch",
+    "index": 0,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "row_ptr",
+    "index": 0,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "attrs": [
+   {
+    "name": "total_rows",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "max_kv",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "use_simt",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "num_heads",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "num_tokens",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "topk",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "batch",
+    "dtype": "int",
+    "value": 0
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/k2q_csr_row_prefix/K2qCsrRowPrefix_a4861e10541be14cc1e79f84c3a0215c.json"
+}

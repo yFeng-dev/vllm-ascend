@@ -50,6 +50,9 @@ def test_environment_override_wins(monkeypatch, env_value):
                 num_speculative_tokens_per_batch_size=[[1, 256, 4]],
             )
         ),
+        SimpleNamespace(lora_config=object()),
+        SimpleNamespace(speculative_config=SimpleNamespace(parallel_drafting=True)),
+        SimpleNamespace(speculative_config=SimpleNamespace(method="eagle3", parallel_drafting=False)),
         SimpleNamespace(
             speculative_config=SimpleNamespace(
                 method="dflash",
@@ -57,12 +60,25 @@ def test_environment_override_wins(monkeypatch, env_value):
                 draft_model_config=SimpleNamespace(architectures=["DFlash2DraftModel"]),
             )
         ),
+        SimpleNamespace(model_config=SimpleNamespace(architectures=["HYV3ForCausalLM"])),
+        SimpleNamespace(model_config=SimpleNamespace(architecture="HYV3ForCausalLM")),
+        SimpleNamespace(model_config=SimpleNamespace(architectures=["Gemma4ForCausalLM"])),
+        SimpleNamespace(model_config=SimpleNamespace(architectures=["Gemma4ForConditionalGeneration"])),
+        SimpleNamespace(model_config=SimpleNamespace(architectures=["Gemma4UnifiedForConditionalGeneration"])),
+        SimpleNamespace(
+            model_config=SimpleNamespace(hf_config=SimpleNamespace(architectures=["Gemma4ForCausalLM"])),
+        ),
         SimpleNamespace(
             kv_transfer_config=SimpleNamespace(kv_connector="MooncakeConnectorV2"),
         ),
         SimpleNamespace(additional_config={"enable_kvpp": True}),
         SimpleNamespace(additional_config={"enable_reduce_sample": False}),
         SimpleNamespace(additional_config={"enable_reduce_sample": "false"}),
+        SimpleNamespace(additional_config={"enable_reduce_sample": True}),
+        SimpleNamespace(additional_config={"enable_reduce_sample": "true"}),
+        SimpleNamespace(additional_config={"enable_reduce_sample": 1}),
+        SimpleNamespace(additional_config={"enable_dsa_cp": False}),
+        SimpleNamespace(additional_config={"enable_dsa_cp": "false"}),
         SimpleNamespace(additional_config={"eplb_config": {"dynamic_eplb": True}}),
         SimpleNamespace(kv_transfer_config=SimpleNamespace(kv_connector="AscendStoreConnector")),
         SimpleNamespace(
@@ -77,11 +93,25 @@ def test_environment_override_wins(monkeypatch, env_value):
         "no-model",
         "unknown-attention-free-generate",
         "dynamic-unsupported-speculation",
+        "lora",
+        "parallel-drafting",
+        "eagle3-without-parallel-drafting",
         "dflash2-eager",
+        "hy3-preview",
+        "hy3-preview-architecture",
+        "gemma4-causal",
+        "gemma4-conditional",
+        "gemma4-unified",
+        "gemma4-hf-config",
         "mooncake-pd",
         "kvpp",
         "reduce-sample-disabled",
         "reduce-sample-string-false",
+        "reduce-sample-enabled",
+        "reduce-sample-string-true",
+        "reduce-sample-int",
+        "dsa-cp-disabled",
+        "dsa-cp-string-false",
         "dynamic-eplb",
         "kv-pool-connector",
         "kv-pool-memcache",
@@ -89,7 +119,6 @@ def test_environment_override_wins(monkeypatch, env_value):
 )
 def test_v2_is_default_outside_the_blacklist(monkeypatch, config):
     monkeypatch.setattr(mrv2_utils.envs_vllm, "VLLM_USE_V2_MODEL_RUNNER", None)
-    monkeypatch.setattr(mrv2_utils, "is_310p", lambda: False)
 
     assert use_v2_model_runner(config) is True
 
@@ -97,14 +126,12 @@ def test_v2_is_default_outside_the_blacklist(monkeypatch, config):
 @pytest.mark.parametrize(
     "config",
     [
-        SimpleNamespace(lora_config=object()),
-        SimpleNamespace(model_config=SimpleNamespace(architectures=["HYV3ForCausalLM"])),
-        SimpleNamespace(model_config=SimpleNamespace(architecture="HYV3ForCausalLM")),
-        SimpleNamespace(model_config=SimpleNamespace(architectures=["Gemma4ForCausalLM"])),
-        SimpleNamespace(model_config=SimpleNamespace(architectures=["Gemma4ForConditionalGeneration"])),
-        SimpleNamespace(model_config=SimpleNamespace(architectures=["Gemma4UnifiedForConditionalGeneration"])),
         SimpleNamespace(
-            model_config=SimpleNamespace(hf_config=SimpleNamespace(architectures=["Gemma4ForCausalLM"])),
+            speculative_config=SimpleNamespace(
+                method="dflash",
+                enforce_eager=False,
+                draft_model_config=SimpleNamespace(architectures=["DFlash2DraftModel"]),
+            )
         ),
         SimpleNamespace(model_config=SimpleNamespace(runner_type="pooling")),
         SimpleNamespace(model_config=SimpleNamespace(is_pooling_model=True)),
@@ -115,29 +142,18 @@ def test_v2_is_default_outside_the_blacklist(monkeypatch, config):
         ),
         SimpleNamespace(compilation_config=SimpleNamespace(cudagraph_mm_encoder=True)),
         SimpleNamespace(additional_config={"draft_window_size": 512}),
-        SimpleNamespace(additional_config={"enable_reduce_sample": True}),
-        SimpleNamespace(additional_config={"enable_reduce_sample": "true"}),
-        SimpleNamespace(additional_config={"enable_reduce_sample": 1}),
+        SimpleNamespace(additional_config={"enable_dsa_cp": True}),
+        SimpleNamespace(additional_config={"enable_dsa_cp": "true"}),
+        SimpleNamespace(additional_config={"enable_dsa_cp": 1}),
         SimpleNamespace(speculative_config=SimpleNamespace(method="suffix")),
         SimpleNamespace(speculative_config=SimpleNamespace(method="ngram")),
         SimpleNamespace(speculative_config=SimpleNamespace(method="ngram_gpu")),
-        SimpleNamespace(speculative_config=SimpleNamespace(parallel_drafting=True)),
-        SimpleNamespace(
-            speculative_config=SimpleNamespace(
-                method="dflash",
-                enforce_eager=False,
-                draft_model_config=SimpleNamespace(architectures=["DFlash2DraftModel"]),
-            )
-        ),
+        SimpleNamespace(speculative_config=SimpleNamespace(method="draft_model", parallel_drafting=True)),
+        SimpleNamespace(speculative_config=SimpleNamespace(method="eagle3", parallel_drafting=True)),
+        SimpleNamespace(speculative_config=SimpleNamespace(method="eagle", parallel_drafting=True)),
     ],
     ids=[
-        "lora",
-        "hy3-preview",
-        "hy3-preview-architecture",
-        "gemma4-causal",
-        "gemma4-conditional",
-        "gemma4-unified",
-        "gemma4-hf-config",
+        "dflash2-graph",
         "pooling-runner",
         "pooling-model",
         "encoder-decoder",
@@ -145,40 +161,41 @@ def test_v2_is_default_outside_the_blacklist(monkeypatch, config):
         "vl-encoder-only",
         "vl-encoder-graph",
         "draft-window-size",
-        "enable-reduce-sample",
-        "enable-reduce-sample-string",
-        "enable-reduce-sample-int",
+        "enable-dsa-cp",
+        "enable-dsa-cp-string",
+        "enable-dsa-cp-int",
         "suffix-speculative-decoding",
         "ngram-speculative-decoding",
         "ngram-gpu-speculative-decoding",
-        "parallel-drafting",
-        "dflash2-graph",
+        "draft-model-speculative-decoding",
+        "p-eagle",
+        "p-eagle-method-eagle",
     ],
 )
 def test_blacklisted_features_default_to_v1(monkeypatch, config):
     monkeypatch.setattr(mrv2_utils.envs_vllm, "VLLM_USE_V2_MODEL_RUNNER", None)
-    monkeypatch.setattr(mrv2_utils, "is_310p", lambda: False)
 
     assert use_v2_model_runner(config) is False
 
 
-def test_310p_defaults_to_v1(monkeypatch):
+def test_310p_follows_default_v2_path(monkeypatch):
+    """Runner selection must not blacklist device identity (HAL)."""
     monkeypatch.setattr(mrv2_utils.envs_vllm, "VLLM_USE_V2_MODEL_RUNNER", None)
-    monkeypatch.setattr(mrv2_utils, "is_310p", lambda: True)
 
-    assert use_v2_model_runner(SimpleNamespace()) is False
+    assert use_v2_model_runner(SimpleNamespace()) is True
 
 
 def test_310p_env_override_still_wins(monkeypatch):
-    monkeypatch.setattr(mrv2_utils.envs_vllm, "VLLM_USE_V2_MODEL_RUNNER", True)
-    monkeypatch.setattr(mrv2_utils, "is_310p", lambda: True)
+    monkeypatch.setattr(mrv2_utils.envs_vllm, "VLLM_USE_V2_MODEL_RUNNER", False)
 
+    assert use_v2_model_runner(SimpleNamespace()) is False
+
+    monkeypatch.setattr(mrv2_utils.envs_vllm, "VLLM_USE_V2_MODEL_RUNNER", True)
     assert use_v2_model_runner(SimpleNamespace()) is True
 
 
 def test_magicmock_config_does_not_trip_the_blacklist(monkeypatch):
     monkeypatch.setattr(mrv2_utils.envs_vllm, "VLLM_USE_V2_MODEL_RUNNER", None)
-    monkeypatch.setattr(mrv2_utils, "is_310p", lambda: False)
 
     assert use_v2_model_runner(MagicMock()) is True
 
@@ -198,6 +215,7 @@ def test_blacklist_does_not_override_explicit_env(monkeypatch):
     assert use_v2_model_runner(SimpleNamespace(compilation_config=SimpleNamespace(cudagraph_mm_encoder=True))) is True
     assert use_v2_model_runner(SimpleNamespace(additional_config={"draft_window_size": 512})) is True
     assert use_v2_model_runner(SimpleNamespace(additional_config={"enable_reduce_sample": True})) is True
+    assert use_v2_model_runner(SimpleNamespace(additional_config={"enable_dsa_cp": True})) is True
     assert (
         use_v2_model_runner(SimpleNamespace(kv_transfer_config=SimpleNamespace(kv_connector="AscendStoreConnector")))
         is True
@@ -207,7 +225,6 @@ def test_blacklist_does_not_override_explicit_env(monkeypatch):
 def test_default_v2_logs_selection(monkeypatch):
     info_calls = []
     monkeypatch.setattr(mrv2_utils.envs_vllm, "VLLM_USE_V2_MODEL_RUNNER", None)
-    monkeypatch.setattr(mrv2_utils, "is_310p", lambda: False)
     monkeypatch.setattr(mrv2_utils.logger, "info_once", lambda *args: info_calls.append(args))
 
     assert use_v2_model_runner(SimpleNamespace()) is True
@@ -219,9 +236,15 @@ def test_blacklist_logs_fallback(monkeypatch):
     monkeypatch.setattr(mrv2_utils.envs_vllm, "VLLM_USE_V2_MODEL_RUNNER", None)
     monkeypatch.setattr(mrv2_utils.logger, "warning_once", lambda *args, **kwargs: warning_calls.append(args))
 
-    assert use_v2_model_runner(SimpleNamespace(lora_config=object())) is False
+    config = SimpleNamespace(
+        speculative_config=SimpleNamespace(
+            method="dflash",
+            draft_model_config=SimpleNamespace(architectures=["DFlash2DraftModel"]),
+        )
+    )
+    assert use_v2_model_runner(config) is False
     assert len(warning_calls) == 1
-    assert "LoRA" in warning_calls[0][1]
+    assert "dflash2 graph" in warning_calls[0][1]
 
 
 def test_validation_is_decoupled_from_upstream():

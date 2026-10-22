@@ -1,0 +1,229 @@
+{
+ "binFileName": "MoeGatingTopKHash_3ae0571f6cf92ebdba8121e33be4ea60",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "VectorCore",
+ "core_type": "AIV",
+ "intercoreSync": 0,
+ "kernelName": "MoeGatingTopKHash_3ae0571f6cf92ebdba8121e33be4ea60",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF_AIVEC",
+ "memoryStamping": [],
+ "opParaSize": 184,
+ "parameters": [
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null
+ ],
+ "sha256": "0e0c03b4921bc795af2e453aecf7cc5c61ecfaf705b9d6056f948ff201adc448",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "kernelName": "MoeGatingTopKHash_3ae0571f6cf92ebdba8121e33be4ea60_0"
+  },
+  {
+   "kernelName": "MoeGatingTopKHash_3ae0571f6cf92ebdba8121e33be4ea60_1"
+  },
+  {
+   "kernelName": "MoeGatingTopKHash_3ae0571f6cf92ebdba8121e33be4ea60_3"
+  },
+  {
+   "kernelName": "MoeGatingTopKHash_3ae0571f6cf92ebdba8121e33be4ea60_4"
+  },
+  {
+   "kernelName": "MoeGatingTopKHash_3ae0571f6cf92ebdba8121e33be4ea60_5"
+  },
+  {
+   "kernelName": "MoeGatingTopKHash_3ae0571f6cf92ebdba8121e33be4ea60_6"
+  },
+  {
+   "kernelName": "MoeGatingTopKHash_3ae0571f6cf92ebdba8121e33be4ea60_2"
+  }
+ ],
+ "optionalInputMode": "gen_placeholder",
+ "optionalOutputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "compileInfo": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "MoeGatingTopKHash/d=0,p=1/27,2/27,2/3,2/0,2",
+   "MoeGatingTopKHash/d=0,p=0/27,2/27,2/3,2/0,2",
+   "MoeGatingTopKHash/d=1,p=1/27,2/27,2/3,2/0,2",
+   "MoeGatingTopKHash/d=1,p=0/27,2/27,2/3,2/0,2"
+  ],
+  "optionalInputMode": "gen_placeholder",
+  "optionalOutputMode": "gen_placeholder",
+  "staticKey": "3b0e1e75eeaaa724d47c6802cf8ef07dc12d2509a77bda1acdc9b934056885d3,dc0edf9f3eea55c43754a720bd0996761c79958cc1e84329c0b4f25348997380",
+  "inputs": [
+   {
+    "name": "x",
+    "index": 0,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "bias",
+    "index": 1,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "input_ids",
+    "index": 2,
+    "dtype": "int64",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "tid2eid",
+    "index": 3,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "bias_vl",
+    "index": 4,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "y",
+    "index": 0,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "expert_idx",
+    "index": 1,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "out",
+    "index": 2,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "attrs": [
+   {
+    "name": "k",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "k_group",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "group_count",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "group_select_mode",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "renorm",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "norm_type",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "out_flag",
+    "dtype": "bool",
+    "value": false
+   },
+   {
+    "name": "routed_scaling_factor",
+    "dtype": "float",
+    "value": 0.0
+   },
+   {
+    "name": "eps",
+    "dtype": "float",
+    "value": 0.0
+   },
+   {
+    "name": "image_sentinel_lo",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "image_sentinel_count",
+    "dtype": "int",
+    "value": 0
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/moe_gating_top_k_hash/MoeGatingTopKHash_3ae0571f6cf92ebdba8121e33be4ea60.json"
+}

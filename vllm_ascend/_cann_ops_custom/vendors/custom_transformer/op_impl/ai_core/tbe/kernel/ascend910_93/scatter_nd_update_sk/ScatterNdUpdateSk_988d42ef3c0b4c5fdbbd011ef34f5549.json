@@ -1,0 +1,130 @@
+{
+ "binFileName": "ScatterNdUpdateSk_988d42ef3c0b4c5fdbbd011ef34f5549",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "VectorCore",
+ "core_type": "AIV",
+ "intercoreSync": 0,
+ "kernelName": "ScatterNdUpdateSk_988d42ef3c0b4c5fdbbd011ef34f5549",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF_AIVEC",
+ "memoryStamping": [],
+ "opParaSize": 392,
+ "parameters": [
+  null,
+  null,
+  null,
+  null,
+  null
+ ],
+ "sha256": "3de33ad3ac0bd676fbddb9146e59dabb6aa66269aa427d9cf5c5b5f8c3dcb58d",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "kernelName": "ScatterNdUpdateSk_988d42ef3c0b4c5fdbbd011ef34f5549_11"
+  },
+  {
+   "kernelName": "ScatterNdUpdateSk_988d42ef3c0b4c5fdbbd011ef34f5549_10"
+  },
+  {
+   "kernelName": "ScatterNdUpdateSk_988d42ef3c0b4c5fdbbd011ef34f5549_21"
+  },
+  {
+   "kernelName": "ScatterNdUpdateSk_988d42ef3c0b4c5fdbbd011ef34f5549_20"
+  },
+  {
+   "kernelName": "ScatterNdUpdateSk_988d42ef3c0b4c5fdbbd011ef34f5549_30"
+  }
+ ],
+ "optionalInputMode": "gen_placeholder",
+ "optionalOutputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "compileInfo": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "ScatterNdUpdateSk/d=0,p=1/6,2/9,2/6,2/6,2",
+   "ScatterNdUpdateSk/d=0,p=0/6,2/9,2/6,2/6,2",
+   "ScatterNdUpdateSk/d=1,p=1/6,2/9,2/6,2/6,2",
+   "ScatterNdUpdateSk/d=1,p=0/6,2/9,2/6,2/6,2"
+  ],
+  "optionalInputMode": "gen_placeholder",
+  "optionalOutputMode": "gen_placeholder",
+  "staticKey": "a78f9a113d06dd052fa83e06011dce0e0f318d5ab2c32fdbebb679818fd0aebc,2862fcc982fd1167b855786e48c66f6addbbf1f59f869cd4de548cb163fb6e2e",
+  "inputs": [
+   {
+    "name": "var",
+    "index": 0,
+    "dtype": "int16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "indices",
+    "index": 1,
+    "dtype": "int64",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "updates",
+    "index": 2,
+    "dtype": "int16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "var",
+    "index": 0,
+    "dtype": "int16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "attrs": [
+   {
+    "name": "strides",
+    "dtype": "list_int",
+    "value": []
+   },
+   {
+    "name": "use_locking",
+    "dtype": "bool",
+    "value": false
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/scatter_nd_update_sk/ScatterNdUpdateSk_988d42ef3c0b4c5fdbbd011ef34f5549.json"
+}

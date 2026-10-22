@@ -1,0 +1,131 @@
+{
+ "binFileName": "K2qCsrTilePrefix_dfe2675b91d552a17b3a927ff9428742",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "VectorCore",
+ "core_type": "AIV",
+ "intercoreSync": 0,
+ "kernelName": "K2qCsrTilePrefix_dfe2675b91d552a17b3a927ff9428742",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF_AIVEC",
+ "memoryStamping": [],
+ "opParaSize": 160,
+ "parameters": [
+  null,
+  null,
+  null,
+  null
+ ],
+ "sha256": "d29dbb2ca732eb7bd5586756b20559ec15f1f798888f2b94c59e997fb751465c",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "kernelName": "K2qCsrTilePrefix_dfe2675b91d552a17b3a927ff9428742_0"
+  }
+ ],
+ "optionalInputMode": "gen_placeholder",
+ "optionalOutputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "compileInfo": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "K2qCsrTilePrefix/d=0,p=1/3,2/3,2/3,2",
+   "K2qCsrTilePrefix/d=0,p=0/3,2/3,2/3,2",
+   "K2qCsrTilePrefix/d=1,p=1/3,2/3,2/3,2",
+   "K2qCsrTilePrefix/d=1,p=0/3,2/3,2/3,2"
+  ],
+  "optionalInputMode": "gen_placeholder",
+  "optionalOutputMode": "gen_placeholder",
+  "staticKey": "33e9766e458ccf560c10294efd35ac8ace87430eb9911f2a61422a9a64d36e00,679f846412cd6feb306f50fecd5c572950d668e5913c89e676cf6ee4321285de",
+  "inputs": [
+   {
+    "name": "scratch",
+    "index": 0,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "row_ptr",
+    "index": 1,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "scratch",
+    "index": 0,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "attrs": [
+   {
+    "name": "total_rows",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "max_kv",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "use_simt",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "num_heads",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "num_tokens",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "topk",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "batch",
+    "dtype": "int",
+    "value": 0
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/k2q_csr_tile_prefix/K2qCsrTilePrefix_dfe2675b91d552a17b3a927ff9428742.json"
+}

@@ -35,9 +35,15 @@ class MooncakeTransferMetadata(KVConnectorHandshakeMetadata):
     block_size_scales: list[list[int]]
     local_ip: str = ""
     handshake_port: int = 0
+    # Physical inner-page layout for attention. Older HND producers omit it.
+    block_layouts: list[str] | None = None
 
     def __post_init__(self) -> None:
         num_layers = len(self.layer_names)
+        if self.block_layouts is not None and (
+            len(self.block_layouts) != num_layers or any(layout not in ("HND", "NHD") for layout in self.block_layouts)
+        ):
+            raise ValueError("Mooncake block_layouts must contain one HND/NHD entry per layer.")
         per_layer_fields: tuple[tuple[str, Sequence[object]], ...] = (
             ("layer_block_sizes", self.layer_block_sizes),
             ("group_indices", self.group_indices),
@@ -105,6 +111,12 @@ class MooncakePPTransferMetadata:
     block_shapes: list[list[tuple[int, ...]]]
     block_size_scales: list[list[int]]
     metadata_by_pcp_rank: dict[int, MooncakePCPTransferMetadata]
+    block_layouts: list[str] | None = None
+
+
+def get_block_layout(metadata: MooncakeTransferMetadata | MooncakePPTransferMetadata, layer_index: int) -> str:
+    layouts = metadata.block_layouts
+    return layouts[layer_index] if layouts is not None else "HND"
 
 
 @dataclass(frozen=True)

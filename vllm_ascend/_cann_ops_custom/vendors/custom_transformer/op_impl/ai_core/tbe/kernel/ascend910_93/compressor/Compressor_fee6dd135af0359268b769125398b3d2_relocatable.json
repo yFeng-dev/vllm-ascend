@@ -1,0 +1,340 @@
+{
+ "binFileName": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable",
+ "binFileSuffix": ".o",
+ "blockDim": -1,
+ "coreType": "MIX",
+ "intercoreSync": 1,
+ "kernelName": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable",
+ "magic": "RT_DEV_BINARY_MAGIC_ELF",
+ "memoryStamping": [],
+ "opParaSize": 704,
+ "parameters": [
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null
+ ],
+ "sha256": "31791b8fa0e540f46b07b0555254efe9c5958a45d751a15e9760934594403f8b",
+ "workspace": {
+  "num": 1,
+  "size": [
+   -1
+  ],
+  "type": [
+   0
+  ]
+ },
+ "kernelList": [
+  {
+   "tilingKey": 129,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable_129"
+  },
+  {
+   "tilingKey": 2177,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable_2177"
+  },
+  {
+   "tilingKey": 161,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable_161"
+  },
+  {
+   "tilingKey": 2209,
+   "kernelType": "MIX_AIC",
+   "crossCoreSync": 1,
+   "taskRation": "1:2",
+   "kernelName": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable_2209"
+  }
+ ],
+ "taskRation": "tilingKey",
+ "optionalInputMode": "gen_placeholder",
+ "optionalOutputMode": "gen_placeholder",
+ "supportSuperKernel": 1,
+ "platformInfo": {
+  "deterministicLevel": 0
+ },
+ "sub_operator_op_type": "Compressor",
+ "sub_operator_params": [
+  "ffts_addr",
+  "x_in__",
+  "wkv_in__",
+  "wgate_in__",
+  "state_cache_in__",
+  "ape_in__",
+  "norm_weight_in__",
+  "rope_sin_in__",
+  "rope_cos_in__",
+  "state_block_table_in__",
+  "cu_seqlens_in__",
+  "seqused_in__",
+  "start_pos_in__",
+  "cmp_kv_out_",
+  "state_cache_out_",
+  "workspace",
+  "tiling"
+ ],
+ "sub_operator_kernel_type": "KERNEL_TYPE_MIX_AIC_1_2",
+ "sub_operator_kernel_name": {
+  "dynamic_func_names": {
+   "129": {
+    "dav-c220-cube": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable_129_mix_aic",
+    "kernel_type": "KERNEL_TYPE_MIX_AIC_1_2",
+    "dav-c220-vec": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable_129_mix_aiv"
+   },
+   "2177": {
+    "dav-c220-cube": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable_2177_mix_aic",
+    "kernel_type": "KERNEL_TYPE_MIX_AIC_1_2",
+    "dav-c220-vec": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable_2177_mix_aiv"
+   },
+   "161": {
+    "dav-c220-cube": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable_161_mix_aic",
+    "kernel_type": "KERNEL_TYPE_MIX_AIC_1_2",
+    "dav-c220-vec": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable_161_mix_aiv"
+   },
+   "2209": {
+    "dav-c220-cube": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable_2209_mix_aic",
+    "kernel_type": "KERNEL_TYPE_MIX_AIC_1_2",
+    "dav-c220-vec": "Compressor_fee6dd135af0359268b769125398b3d2_relocatable_2209_mix_aiv"
+   }
+  }
+ },
+ "sub_operator_early_start_set_flag": false,
+ "sub_operator_early_start_wait_flag": false,
+ "sub_operator_call_dcci_before_kernel_start": true,
+ "sub_operator_call_dcci_after_kernel_end": true,
+ "sub_operator_call_dcci_disable_on_kernel": false,
+ "sub_op_with_sync_all": true,
+ "compileInfo": {},
+ "feature_list": {},
+ "supportInfo": {
+  "implMode": "high_performance",
+  "int64Mode": false,
+  "simplifiedKeyMode": 0,
+  "simplifiedKey": [
+   "Compressor/d=0,p=1/27,2/27,2/27,2/0,2/0,2/0,2/0,2/0,2/27,2/0,2",
+   "Compressor/d=0,p=0/27,2/27,2/27,2/0,2/0,2/0,2/0,2/0,2/27,2/0,2",
+   "Compressor/d=1,p=1/27,2/27,2/27,2/0,2/0,2/0,2/0,2/0,2/27,2/0,2",
+   "Compressor/d=1,p=0/27,2/27,2/27,2/0,2/0,2/0,2/0,2/0,2/27,2/0,2"
+  ],
+  "optionalInputMode": "gen_placeholder",
+  "optionalOutputMode": "gen_placeholder",
+  "staticKey": "2c9c2215fdc89e8c97c1cfcc26f9c2d46b00346dd85d59d16f4adfcbabbd6a69,f45228a87df7071e5c02ff9cf3b59e803f348c259181daa5b6c806f7d78b5872",
+  "inputs": [
+   {
+    "name": "x",
+    "index": 0,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "wkv",
+    "index": 1,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "wgate",
+    "index": 2,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "state_cache",
+    "index": 3,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "ape",
+    "index": 4,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "norm_weight",
+    "index": 5,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "rope_sin",
+    "index": 6,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "rope_cos",
+    "index": 7,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "state_block_table",
+    "index": 8,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "cu_seqlens",
+    "index": 9,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "seqused",
+    "index": 10,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "start_pos",
+    "index": 11,
+    "dtype": "int32",
+    "format": "ND",
+    "paramType": "optional",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "outputs": [
+   {
+    "name": "cmp_kv",
+    "index": 0,
+    "dtype": "bfloat16",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   },
+   {
+    "name": "state_cache",
+    "index": 1,
+    "dtype": "float32",
+    "format": "ND",
+    "paramType": "required",
+    "shape": [
+     -2
+    ],
+    "format_match_mode": "FormatAgnostic"
+   }
+  ],
+  "attrs": [
+   {
+    "name": "rope_head_dim",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "cmp_ratio",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "coff",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "norm_eps",
+    "dtype": "float",
+    "value": 0.0
+   },
+   {
+    "name": "rotary_mode",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "cache_mode",
+    "dtype": "int",
+    "value": 0
+   },
+   {
+    "name": "state_cache_stride_dim0",
+    "dtype": "int",
+    "value": 0
+   }
+  ],
+  "opMode": "dynamic",
+  "deterministic": "ignore"
+ },
+ "filePath": "ascend910_93/bin/compressor/Compressor_fee6dd135af0359268b769125398b3d2_relocatable.json"
+}

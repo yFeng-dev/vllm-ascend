@@ -1,0 +1,432 @@
+{
+  "binList": [
+    {
+      "implMode": "high_performance",
+      "int64Mode": false,
+      "simplifiedKeyMode": 0,
+      "simplifiedKey": [
+        "Compressor/d=0,p=1/1,2/1,2/1,2/0,2/0,2/0,2/0,2/0,2/1,2/0,2",
+        "Compressor/d=0,p=0/1,2/1,2/1,2/0,2/0,2/0,2/0,2/0,2/1,2/0,2",
+        "Compressor/d=1,p=1/1,2/1,2/1,2/0,2/0,2/0,2/0,2/0,2/1,2/0,2",
+        "Compressor/d=1,p=0/1,2/1,2/1,2/0,2/0,2/0,2/0,2/0,2/1,2/0,2"
+      ],
+      "staticKey": "f91fe0c23cf76ce4dca242d1d23b28368f798c176cf6d7d00a0ca04070ced49a,9a6bbb9ecbf3edf240664c5a8f46dc1a07c32f66a54546a13efc3b52c0eb44a0",
+      "inputs": [
+        {
+          "name": "x",
+          "index": 0,
+          "dtype": "float16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "wkv",
+          "index": 1,
+          "dtype": "float16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "wgate",
+          "index": 2,
+          "dtype": "float16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "state_cache",
+          "index": 3,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "ape",
+          "index": 4,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "norm_weight",
+          "index": 5,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "rope_sin",
+          "index": 6,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "rope_cos",
+          "index": 7,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "state_block_table",
+          "index": 8,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "cu_seqlens",
+          "index": 9,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "seqused",
+          "index": 10,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "start_pos",
+          "index": 11,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "cmp_kv",
+          "index": 0,
+          "dtype": "float16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "state_cache",
+          "index": 1,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "attrs": [
+        {
+          "name": "rope_head_dim",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "cmp_ratio",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "coff",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "norm_eps",
+          "dtype": "float",
+          "value": 0.0
+        },
+        {
+          "name": "rotary_mode",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "cache_mode",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "state_cache_stride_dim0",
+          "dtype": "int",
+          "value": 0
+        }
+      ],
+      "opMode": "dynamic",
+      "optionalInputMode": "gen_placeholder",
+      "deterministic": "ignore",
+      "optionalOutputMode": "gen_placeholder",
+      "binInfo": {
+        "jsonFilePath": "ascend910_93/compressor/Compressor_bef03b9219f6b8f43c9980287f972446.json"
+      }
+    },
+    {
+      "implMode": "high_performance",
+      "int64Mode": false,
+      "simplifiedKeyMode": 0,
+      "simplifiedKey": [
+        "Compressor/d=0,p=1/27,2/27,2/27,2/0,2/0,2/0,2/0,2/0,2/27,2/0,2",
+        "Compressor/d=0,p=0/27,2/27,2/27,2/0,2/0,2/0,2/0,2/0,2/27,2/0,2",
+        "Compressor/d=1,p=1/27,2/27,2/27,2/0,2/0,2/0,2/0,2/0,2/27,2/0,2",
+        "Compressor/d=1,p=0/27,2/27,2/27,2/0,2/0,2/0,2/0,2/0,2/27,2/0,2"
+      ],
+      "staticKey": "2c9c2215fdc89e8c97c1cfcc26f9c2d46b00346dd85d59d16f4adfcbabbd6a69,f45228a87df7071e5c02ff9cf3b59e803f348c259181daa5b6c806f7d78b5872",
+      "inputs": [
+        {
+          "name": "x",
+          "index": 0,
+          "dtype": "bfloat16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "wkv",
+          "index": 1,
+          "dtype": "bfloat16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "wgate",
+          "index": 2,
+          "dtype": "bfloat16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "state_cache",
+          "index": 3,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "ape",
+          "index": 4,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "norm_weight",
+          "index": 5,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "rope_sin",
+          "index": 6,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "rope_cos",
+          "index": 7,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "state_block_table",
+          "index": 8,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "cu_seqlens",
+          "index": 9,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "seqused",
+          "index": 10,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "start_pos",
+          "index": 11,
+          "dtype": "int32",
+          "format": "ND",
+          "paramType": "optional",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "cmp_kv",
+          "index": 0,
+          "dtype": "bfloat16",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        },
+        {
+          "name": "state_cache",
+          "index": 1,
+          "dtype": "float32",
+          "format": "ND",
+          "paramType": "required",
+          "shape": [
+            -2
+          ],
+          "format_match_mode": "FormatAgnostic"
+        }
+      ],
+      "attrs": [
+        {
+          "name": "rope_head_dim",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "cmp_ratio",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "coff",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "norm_eps",
+          "dtype": "float",
+          "value": 0.0
+        },
+        {
+          "name": "rotary_mode",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "cache_mode",
+          "dtype": "int",
+          "value": 0
+        },
+        {
+          "name": "state_cache_stride_dim0",
+          "dtype": "int",
+          "value": 0
+        }
+      ],
+      "opMode": "dynamic",
+      "optionalInputMode": "gen_placeholder",
+      "deterministic": "ignore",
+      "optionalOutputMode": "gen_placeholder",
+      "binInfo": {
+        "jsonFilePath": "ascend910_93/compressor/Compressor_fee6dd135af0359268b769125398b3d2.json"
+      }
+    }
+  ]
+}

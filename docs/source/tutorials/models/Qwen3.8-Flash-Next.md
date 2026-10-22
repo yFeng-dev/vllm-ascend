@@ -2,6 +2,12 @@
 
 ## 1 Introduction
 
+!!! note
+
+    The "PD Separation Deployment" mentioned in this document is provided only as an example/reference design to demonstrate the basic process of deploying Prefill and Decode in separated mode. It is not recommended for use in the production environment.
+    
+    **For the production environment on the customer side, [MindIE Motor](https://www.hiascend.com/document/detail/en/mindie/latest/quickstart/docs/en/user_guide/quick_start.md) + vLLM-Ascend is recommended.**
+
 Qwen3.8-Flash-Next is a multimodal Mixture-of-Experts (MoE) model and an experimental preview of the architecture that will underpin Qwen4. Its language model combines Gated DeltaNet and Qwen Sparse Attention (QSA), gated residual connections, Position Learning Enhancement (PLE), and a native Multi-Token Prediction (MTP) head.
 
 The current version supports only Atlas A3 series hardware. Atlas A2 series hardware and Ascend 950DT and 950PR products are not yet supported and will be enabled progressively in future releases. This tutorial describes the W8A8 deployment on Atlas 800 A3. Text and multimodal input have been validated on Atlas 800 A3.
@@ -121,10 +127,6 @@ Before starting the service:
     source /usr/local/Ascend/nnal/atb/set_env.sh
 
     export MODEL_PATH=/models/Qwen3.8-Flash-Next-w8a8-mtp
-    export VLLM_ASCEND_ENABLE_QSA_LIGHTNING_INDEXER=1
-    export VLLM_ASCEND_ENABLE_QSA_E3V=1
-    unset VLLM_ASCEND_FORCE_QSA_REFERENCE
-
     vllm serve "$MODEL_PATH" \
         --host 0.0.0.0 \
         --port 8088 \
@@ -152,8 +154,6 @@ Before starting the service:
 
     Key parameter descriptions:
 
-    - `VLLM_ASCEND_ENABLE_QSA_LIGHTNING_INDEXER=1` enables the fused QSA Lightning Indexer path.
-    - `VLLM_ASCEND_ENABLE_QSA_E3V=1` enables the fused QSA Expand E3 path.
     - `--quantization ascend` loads the Ascend-compatible W8A8 checkpoint.
     - `--tensor-parallel-size 8` and `--data-parallel-size 1` configure the A3 single-DP TP8 topology.
     - `--enable-expert-parallel` enables expert parallelism for the MoE layers.
