@@ -30,6 +30,67 @@ from vllm_ascend.patch.platform.patch_kv_cache_utils import (
 )
 from vllm_ascend.worker import model_runner_v1
 from vllm_ascend.worker.model_runner_v1 import NPUModelRunner
+from vllm_ascend.worker.v2 import attn_utils as v2_attn_utils
+
+
+@pytest.mark.parametrize("connector", [None, "MooncakeConnectorV2", "MooncakePullConnector"])
+@pytest.mark.parametrize("num_blocks", [1, 4])
+def test_v2_six_region_pd_allocation_and_views(monkeypatch, connector, num_blocks):
+    # Hidden-state caches are absent in the non-speculative PD deployment.
+    groups = [group for group in _groups() if not isinstance(group.kv_cache_spec, HiddenStateCacheSpec)]
+    config = SimpleNamespace(
+        kv_transfer_config=None if connector is None else SimpleNamespace(kv_connector=connector),
+        cache_config=SimpleNamespace(num_gpu_blocks_override=num_blocks, prefix_cache_retention_interval=None),
+    )
+    cache = _get_qwen4_exp_six_region_kv_cache_config(config, groups, 8 * 1024 * 1024)
+    layout = build_six_region_kv_cache_layout(groups, cache.num_blocks)
+    assert layout is not None
+    monkeypatch.setattr(v2_attn_utils, "get_current_vllm_config", lambda: config)
+    monkeypatch.setattr(v2_attn_utils, "_is_dsv4_model", lambda _: False)
+    monkeypatch.setattr(v2_attn_utils.KVPPConfig, "from_vllm_config", lambda _: SimpleNamespace(size=1))
+    monkeypatch.setattr(v2_attn_utils, "is_c8_mxfp_kv_quant", lambda _: False)
+
+    raw = v2_attn_utils._allocate_kv_cache(cache, {}, torch.device("cpu"))
+    assert len({tensor.data_ptr() for tensor in raw.values()}) == 1
+    assert next(iter(raw.values())).numel() == layout.slot_count * layout.slot_backing_size
+    attn_groups = [
+        SimpleNamespace(kv_cache_spec=group.kv_cache_spec, layer_names=group.layer_names, kv_cache_group_id=index)
+        for index, group in enumerate(groups)
+    ]
+    views = v2_attn_utils._reshape_kv_cache_v2(
+        attn_groups, raw, "auto", [group.kv_cache_spec.block_size for group in groups], {}, cache
+    )
+    k_cache, v_cache = views["model.layers.11.self_attn.attn"]
+    assert k_cache.data_ptr() != v_cache.data_ptr()
+    assert k_cache.stride(0) * k_cache.element_size() == layout.region("r2").page_size_bytes
+    assert v_cache.stride(0) * v_cache.element_size() == layout.region("r3").page_size_bytes
+    k_cache.fill_(3)
+    v_cache.fill_(7)
+    assert torch.all(k_cache == 3)
+    assert torch.all(v_cache == 7)
+    for group in groups:
+        for name in group.layer_names:
+            tensors = views[name] if isinstance(views[name], (list, tuple)) else (views[name],)
+            assert all(tensor.is_contiguous() for tensor in tensors)
+
+
+@pytest.mark.parametrize(
+    "transfer",
+    [
+        SimpleNamespace(kv_connector="OtherConnector"),
+        SimpleNamespace(kv_connector="MooncakeConnectorV2", kv_connector_module_path="custom.connector"),
+    ],
+)
+def test_v2_six_region_pd_rejects_unsupported_connectors(monkeypatch, transfer):
+    config = SimpleNamespace(kv_transfer_config=transfer)
+    monkeypatch.setattr(v2_attn_utils, "get_current_vllm_config", lambda: config)
+    monkeypatch.setattr(v2_attn_utils, "_is_dsv4_model", lambda _: False)
+    monkeypatch.setattr(v2_attn_utils.KVPPConfig, "from_vllm_config", lambda _: SimpleNamespace(size=1))
+    groups = [group for group in _groups() if not isinstance(group.kv_cache_spec, HiddenStateCacheSpec)]
+    config.cache_config = SimpleNamespace(num_gpu_blocks_override=4, prefix_cache_retention_interval=None)
+    cache = _get_qwen4_exp_six_region_kv_cache_config(config, groups, 8 * 1024 * 1024)
+    with pytest.raises(ValueError, match="requires contiguous per-layer"):
+        v2_attn_utils._allocate_kv_cache(cache, {}, torch.device("cpu"))
 
 
 def _groups() -> list[KVCacheGroupSpec]:
