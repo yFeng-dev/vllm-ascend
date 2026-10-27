@@ -889,9 +889,7 @@ if hasattr(_kv_cache_planning, "DefaultKVCacheConfigBuilder"):
     ) -> int:
         return _ascend_pool_bytes_per_block(vllm_config, kv_cache_groups)
 
-    _kv_cache_planning.DefaultKVCacheConfigBuilder._get_pool_bytes_per_block = (
-        _ascend_builder_pool_bytes_per_block
-    )
+    _kv_cache_planning.DefaultKVCacheConfigBuilder._get_pool_bytes_per_block = _ascend_builder_pool_bytes_per_block
 
 # Also patch the reference used by engine/core.py which imports the function directly.
 import vllm.v1.engine.core  # noqa: E402
