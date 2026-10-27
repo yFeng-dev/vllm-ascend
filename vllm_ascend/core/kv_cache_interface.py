@@ -112,8 +112,8 @@ def supports_bounded_replay(model_config: Any) -> bool:
 def resolve_bounded_replay(vllm_config: VllmConfig, cache_config: CacheConfig | None) -> bool:
     """Whether a sliding-window layer may declare a replay window.
 
-    The switch and both guards are upstream's (vLLM #56227), re-decided here
-    because the layer upstream applies them in -- its own SWA attention layer --
+    The switch comes from upstream (vLLM #56227) and is re-decided here
+    because the layer upstream applies it in -- its own SWA attention layer --
     is the one Ascend replaces. The Ascend scheduler conditions, the ones that
     cannot rewind a prefix hit at all, are decided in ``platform.py`` before any
     layer exists: they turn the switch itself off, so this reads the result.
@@ -141,15 +141,11 @@ def resolve_bounded_replay(vllm_config: VllmConfig, cache_config: CacheConfig | 
         # nothing to warn about. Probed rather than read, so the lane does not
         # have to be named here.
         return False
-    if vllm_config.parallel_config.prefill_context_parallel_size > 1:
-        # The PAD pass walks the batch the rank was handed, which under PCP is
-        # not the batch the scheduler rewound. Keep replay disabled until the
-        # per-rank replay boundaries can be mapped correctly.
-        logger.warning_once(
-            "SWA bounded replay is off under prefill context parallelism (the replayed tokens' slot "
-            "padding knows the rank-local batch only); the sliding-window cache takes part in prefix "
-            "caching instead."
-        )
+    if (
+        vllm_config.parallel_config.prefill_context_parallel_size > 1
+        and vllm_config.parallel_config.data_parallel_size > 1
+    ):
+        logger.warning_once("SWA bounded replay with PCP currently requires DP=1.")
         return False
     return True
 
@@ -188,8 +184,9 @@ def supports_component_major_mla_pd(vllm_config: VllmConfig) -> bool:
     the legacy separate NoPE/RoPE protocol.
 
     Without PD, local layout selection is unrestricted. With supported PD,
-    both endpoints must use component-major pages because raw transfers carry
-    no metadata distinguishing them from token-fused FlashMLA pages.
+    both endpoints must agree on the page layout: raw transfers carry no
+    metadata distinguishing component-major from token-fused FlashMLA pages.
+    This helper identifies connector support, not cross-endpoint agreement.
     """
     kv_transfer_config = vllm_config.kv_transfer_config
     if kv_transfer_config is None:

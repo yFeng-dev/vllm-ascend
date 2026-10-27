@@ -14,6 +14,7 @@
 
 """Ascend QSA owner for Qwen3.8-Flash-Next."""
 
+from copy import copy
 from dataclasses import replace
 from typing import Protocol, TypeAlias, cast
 
@@ -23,6 +24,10 @@ from vllm.logger import logger
 from vllm.models.qwen4_exp.amd import (
     indexer_qsa as upstream_indexer,
 )
+
+# Upstream model and QSA import each other; initialize the model first when
+# this submodule is imported directly, independently of lazy package exports.
+from vllm.models.qwen4_exp.amd import model as _upstream_model  # noqa: F401
 from vllm.models.qwen4_exp.amd import qsa as upstream_qsa
 from vllm.models.qwen4_exp.common import qsa_cache
 from vllm.models.qwen4_exp.common.qsa_cache import (
@@ -35,9 +40,6 @@ from vllm.utils.torch_utils import (
 from vllm.v1.kv_cache_interface import AttentionSpec
 from vllm.v1.kv_cache_layout import KVCacheLayout
 
-from vllm_ascend.ops.gbsa_qsa import (
-    qsa_gbsa_attention,
-)
 from vllm_ascend.ops.triton.linearnorm import qsa_rmsnorm_mrope as _qsa_rmsnorm_mrope  # noqa: F401
 from vllm_ascend.ops.triton.qwen4_exp.qsa import (
     qsa_compress_groups_with_ratio as qsa_compress_groups_with_ratio_fused,
@@ -46,6 +48,7 @@ from vllm_ascend.ops.triton.qwen4_exp.qsa import (
     qsa_store_cache_rows as qsa_store_cache_rows_fused,
 )
 
+from .gbsa import GBSA_PAGE_SIZE, qsa_gbsa_attention
 from .lightning_indexer import qsa_select_paged_tokens_lightning
 
 QSAKVCache: TypeAlias = torch.Tensor | tuple[torch.Tensor, torch.Tensor]
@@ -458,6 +461,40 @@ class AscendQSAImpl:
         """QSA replay parameters live in persistent buffers; nothing to rebind."""
 
 
+class AscendQSAStateMetadataBuilder(qsa_cache.QSAMetadataBuilder):
+    """Keep compressed indexer state addressed by its physical manager pages.
+
+    Main QSA and compressed keys share a scheduler group. The group uses
+    128-token kernel blocks for GBSA, but compressed storage still contains
+    block_size / compress_ratio states per manager page.
+    """
+
+    def __init__(self, kv_cache_spec, layer_names, vllm_config, device):
+        super().__init__(kv_cache_spec, layer_names, vllm_config, device)
+        self._manager_table = None
+        self._manager_table_rows = vllm_config.scheduler_config.max_num_seqs
+
+    def build(self, common_prefix_len, common_attn_metadata, fast_build=False):
+        if self.vllm_config.use_v2_model_runner:
+            # MRV2 exposes compressed storage as kernel pages, like GQA.
+            # Its block table and builder spec already address those views.
+            return super().build(common_prefix_len, common_attn_metadata, fast_build)
+        factor = self.kv_cache_spec.block_size // GBSA_PAGE_SIZE
+        if not self.is_circular_buffer and factor > 1:
+            pages = common_attn_metadata.block_table_tensor[:, ::factor]
+            if self._manager_table is None:
+                self._manager_table = torch.empty(
+                    (self._manager_table_rows, pages.shape[1]), dtype=pages.dtype, device=pages.device
+                )
+            manager_table = self._manager_table[: pages.shape[0], : pages.shape[1]]
+            # Floor division preserves the -1 padding sentinel. Keep the output
+            # address stable for ACL graph replay, including later MTP steps.
+            torch.div(pages, factor, rounding_mode="floor", out=manager_table)
+            common_attn_metadata = copy(common_attn_metadata)
+            common_attn_metadata.block_table_tensor = manager_table
+        return super().build(common_prefix_len, common_attn_metadata, fast_build)
+
+
 class AscendQSABackend(upstream_qsa.Qwen4ExpQSAFlashAttentionBackend):
     # QSA pages are represented by descriptor-backed views. Consecutive
     # logical blocks may be separated by other cache owners in the common
@@ -468,6 +505,10 @@ class AscendQSABackend(upstream_qsa.Qwen4ExpQSAFlashAttentionBackend):
     @staticmethod
     def get_name() -> str:
         return "QWEN4_EXP_QSA_ASCEND"
+
+    @staticmethod
+    def get_supported_kernel_block_sizes(kv_cache_spec=None) -> list[int]:
+        return [GBSA_PAGE_SIZE]
 
     @staticmethod
     def get_impl_cls() -> type[AscendQSAImpl]:
@@ -513,6 +554,7 @@ def _ascend_qsa_state_cache_layouts(
 # required before LightningIndexer or the Triton QSA selector consumes them.
 qsa_cache.QSAStateBackend.supported_kv_cache_layouts = classmethod(_ascend_qsa_state_cache_layouts)
 qsa_cache.QSAStateBackend.uses_descriptor_cache_view = True
+qsa_cache.QSAStateBackend.get_builder_cls = staticmethod(lambda: AscendQSAStateMetadataBuilder)
 
 
 # qsa_cache selects its Triton metadata builder at import time. The upstream

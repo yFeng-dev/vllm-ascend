@@ -24,6 +24,7 @@ from vllm_ascend.attention.attention_c8_mxfp import (
     mxfp_v_scale_cache_shape,
 )
 from vllm_ascend.attention.mla_v1 import AscendMLABackend, AscendMLAImpl
+from vllm_ascend.utils import vllm_version_is
 from vllm_ascend.worker.v2.input_batch import AscendInputBatch, AscendInputBuffers
 from vllm_ascend.worker.v2.model_runner import NPUModelRunner
 from vllm_ascend.worker.v2.pcp_manager import AscendPCPManager
@@ -35,11 +36,9 @@ def _make_runner(need_timing: bool = True):
     runner.ascend_config = SimpleNamespace(
         scheduler_config=SimpleNamespace(profiling_chunk_config=SimpleNamespace(need_timing=need_timing)),
         sparse_kv_offload_config=SimpleNamespace(enabled=False),
+        kvpp_config=SimpleNamespace(size=1),
     )
-    runner.vllm_config = SimpleNamespace(
-        parallel_config=SimpleNamespace(prefill_context_parallel_size=1), kv_transfer_config=None
-    )
-    runner.max_num_tokens = 16
+    runner.vllm_config = SimpleNamespace(kv_transfer_config=None)
     runner.model_config = SimpleNamespace(hf_config=SimpleNamespace(model_type="other_model"))
     runner.kv_cache_config = KVCacheConfig(num_blocks=0, kv_cache_tensors=[], kv_cache_groups=[])
     runner.kvpp = SimpleNamespace(complete_forward=lambda: None)
@@ -53,11 +52,16 @@ def _make_runner(need_timing: bool = True):
     runner.debugger = None
     runner._debugger_started = False
     runner.attn_groups = []
+    runner._uses_flashmla = False
     runner.adaptive_verification = None
     runner.input_buffers = SimpleNamespace(dummy_num_tokens=None)
     runner.compilation_config = SimpleNamespace(cudagraph_mode=CUDAGraphMode.NONE)
     runner.use_fia = False
     runner.sync_spec_pp_cpu_counts = False
+    runner.speculative_config = None
+    # vLLM main suppresses EPLB even for `skip_eplb` dummy runs, so the
+    # attribute must exist on every runner built here.
+    runner.eplb = SimpleNamespace(suppress=nullcontext, step=Mock())
     # Set by NPUModelRunner.__init__ on real instances.
     runner._finegrained_tp_requires_graph = False
     # Empty groups keep prepare_dummy_attn's V4.1 ring-state prep a no-op;
@@ -170,6 +174,68 @@ def _make_batch_state(
         prefill_runs_as_decode_np=prefill_runs_as_decode,
         decode_graph_eligible=bool((prefill_runs_as_decode | ~is_prefilling).all()),
     )
+
+
+@pytest.mark.parametrize("uses_flashmla", [False, True])
+@pytest.mark.parametrize("draft_tokens", [0, 3])
+def test_gather_batch_preserves_pd_tail_and_flashmla_request_order(uses_flashmla, draft_tokens):
+    runner = _make_runner()
+    runner._uses_flashmla = uses_flashmla
+    runner.decode_query_len = 1 + draft_tokens
+    runner.vllm_config.kv_transfer_config = SimpleNamespace(is_kv_consumer=True, is_kv_producer=False)
+    batch_state = _make_batch_state([127, 128], [runner.decode_query_len] * 2, [128, 128], draft_tokens)
+    scheduler_output = SimpleNamespace()
+
+    with patch.object(
+        GPUModelRunner, "gather_batch_req_state", return_value=(batch_state, runner.decode_query_len)
+    ) as parent:
+        gathered, uniform = runner.gather_batch_req_state(scheduler_output, False)
+
+    parent.assert_called_once_with(scheduler_output, False)
+    order = [1, 0] if uses_flashmla else [0, 1]
+    assert gathered.req_ids == [batch_state.req_ids[index] for index in order]
+    for field in batch_state._fields:
+        values = getattr(batch_state, field)
+        if isinstance(values, np.ndarray):
+            np.testing.assert_array_equal(getattr(gathered, field), values[order])
+    assert gathered.has_prefill is True
+    assert gathered.decode_graph_eligible is (not uses_flashmla)
+    assert uniform == (None if uses_flashmla else runner.decode_query_len)
+    np.testing.assert_array_equal(batch_state.is_prefilling_np, [True, False])
+    if not uses_flashmla:
+        assert gathered is batch_state
+
+
+@pytest.mark.parametrize("uses_flashmla", [False, True])
+@pytest.mark.parametrize("graph_eligible", [False, True])
+def test_gather_decode_batch_preserves_upstream_graph_gate(uses_flashmla, graph_eligible):
+    runner = _make_runner()
+    runner._uses_flashmla = uses_flashmla
+    batch_state = _make_batch_state([128, 64], [1, 1], [128, 64])._replace(decode_graph_eligible=graph_eligible)
+    expected_uniform = 1 if graph_eligible else None
+    with patch.object(GPUModelRunner, "gather_batch_req_state", return_value=(batch_state, expected_uniform)):
+        gathered, uniform = runner.gather_batch_req_state(SimpleNamespace(), False)
+
+    assert gathered.req_ids == batch_state.req_ids
+    assert gathered.has_prefill is False
+    np.testing.assert_array_equal(gathered.is_prefilling_np, [False, False])
+    assert gathered.decode_graph_eligible is graph_eligible
+    assert uniform == expected_uniform
+
+
+@pytest.mark.parametrize("uses_flashmla", [False, True])
+def test_gather_dummy_batch_bypasses_flashmla(uses_flashmla):
+    runner = _make_runner()
+    runner._uses_flashmla = uses_flashmla
+    scheduler_output = SimpleNamespace()
+    with (
+        patch.object(GPUModelRunner, "gather_batch_req_state", return_value=(None, 4)) as parent,
+        patch("vllm_ascend.worker.v2.model_runner.prepare_flashmla_batch_req_state") as prepare,
+    ):
+        assert runner.gather_batch_req_state(scheduler_output, True) == (None, 4)
+
+    parent.assert_called_once_with(scheduler_output, True)
+    prepare.assert_not_called()
 
 
 def test_capture_model_uses_ascend_context_and_encoder_update_stream():
@@ -685,12 +751,35 @@ def test_load_model_starts_dump_before_capture_in_graph_mode(load_dummy_weights)
     with (
         patch.object(GPUModelRunner, "load_model") as parent_load_model,
         patch("vllm_ascend.worker.v2.model_runner.get_pd_dspark_aux_layer_ids", return_value=aux_layers),
+        patch("vllm_ascend.model_executor.warmup.nz_warmup.start_nz_warm_thread") as start_nz,
+        patch("vllm_ascend.model_executor.warmup.nz_warmup.join_nz_warm_thread") as join_nz,
+        patch("vllm_ascend.model_executor.warmup.early_kernel_warmup.start_early_kernel_warmup") as start_early,
+        patch("vllm_ascend.model_executor.warmup.early_kernel_warmup.join_early_kernel_warmup") as join_early,
     ):
+        order = Mock()
+        order.attach_mock(start_nz, "start_nz")
+        order.attach_mock(start_early, "start_early")
+        order.attach_mock(parent_load_model, "parent_load")
+        order.attach_mock(join_nz, "join_nz")
+        order.attach_mock(join_early, "join_early")
         runner.load_model(load_dummy_weights, "load_arg", load_option=True)
 
     parent_load_model.assert_called_once_with(load_dummy_weights, "load_arg", load_option=True)
     assert runner.pd_dspark_aux_layer_ids == aux_layers
     debugger.start.assert_called_once_with(runner.model)
+    # The warmups must be started before weight I/O and joined before the
+    # method returns, which is before memory profiling.
+    start_nz.assert_called_once_with("thread")
+    start_early.assert_called_once_with()
+    join_nz.assert_called_once_with()
+    join_early.assert_called_once_with("load_model")
+    assert [entry[0] for entry in order.mock_calls] == [
+        "start_nz",
+        "start_early",
+        "parent_load",
+        "join_nz",
+        "join_early",
+    ]
 
 
 def test_load_model_skips_dump_in_eager_mode():
@@ -702,6 +791,28 @@ def test_load_model_skips_dump_in_eager_mode():
         runner.load_model()
 
     debugger.start.assert_not_called()
+
+
+def test_load_model_joins_warmups_when_weight_loading_fails():
+    # The background warmup threads touch the NPU device, so a failed load must
+    # not leave them running.
+    runner = _make_runner(need_timing=False)
+
+    with (
+        patch.object(GPUModelRunner, "load_model", side_effect=RuntimeError("OOM")),
+        patch("vllm_ascend.worker.v2.model_runner.get_pd_dspark_aux_layer_ids", return_value=()),
+        patch("vllm_ascend.model_executor.warmup.nz_warmup.start_nz_warm_thread") as start_nz,
+        patch("vllm_ascend.model_executor.warmup.nz_warmup.join_nz_warm_thread") as join_nz,
+        patch("vllm_ascend.model_executor.warmup.early_kernel_warmup.start_early_kernel_warmup") as start_early,
+        patch("vllm_ascend.model_executor.warmup.early_kernel_warmup.join_early_kernel_warmup") as join_early,
+        pytest.raises(RuntimeError),
+    ):
+        runner.load_model()
+
+    start_nz.assert_called_once_with("thread")
+    start_early.assert_called_once_with()
+    join_nz.assert_called_once_with()
+    join_early.assert_called_once_with("load_model")
 
 
 @pytest.mark.parametrize("with_draft", [False, True])
@@ -756,13 +867,17 @@ def test_load_model_original_profiler_counts_post_load_weights(monkeypatch, with
         impl.v_head_dim = 1
         impl.enable_mlapo = False
         impl.fa_quant_layer = False
-        impl.pcp_enabled = False
-        impl.dcp_enabled = False
+        impl.use_flashmla = False
+        impl.use_pcp = False
+        impl.use_dcp = False
         impl.supports_prolog_v3_writer = lambda: True
         layer.impl = impl
         layer.indexer = None
         layer.kv_cache_dtype = "auto"
         layer.head_size = 3
+        # Set by ``MLAAttention.__init__`` on vLLM main; this stub bypasses
+        # ``__init__`` but ``get_kv_cache_spec`` reads it.
+        layer.topk_buffer_width = None
         layer.sliding_window = None
         layer.non_causal_multi_token_decode = False
 
@@ -893,7 +1008,8 @@ def test_pcp_dummy_refreshes_captured_buffers_after_real_batch(num_reqs, num_tok
         dummy = AscendInputBatch.make_dummy(num_reqs, num_tokens, runner.input_buffers)
 
     # execute_model stages dummy inputs before preparing attention metadata.
-    staged = manager.prepare_inputs_to_capture(dummy)
+    stage_name = "prepare_inputs_to_capture" if vllm_version_is("0.31.0") else "prepare_inputs_for_capture_or_profile"
+    staged = getattr(manager, stage_name)(dummy)
     block_tables, slots = runner.prepare_dummy_attn(staged)
 
     for name, value in captured.items():
@@ -1172,8 +1288,7 @@ def test_initialize_kv_cache_installs_aclgraph_factory_and_pcp(a5, architecture)
     runner.pcp_manager = MagicMock(spec=AscendPCPManager)
     runner.model_state = SimpleNamespace(pcp_manager=None, kvpp_runtime=None)
     runner.speculator = SimpleNamespace()
-    runner.model_config = SimpleNamespace(enable_return_routed_experts=True, architecture=architecture)
-    runner.init_routed_experts_capturer = MagicMock()
+    runner.model_config = SimpleNamespace(architecture=architecture)
     kv_cache_config = KVCacheConfig(num_blocks=0, kv_cache_tensors=[], kv_cache_groups=[])
     original = vllm_model_runner.ModelCudaGraphManager
     seen = {}
@@ -1224,8 +1339,6 @@ def test_initialize_kv_cache_installs_aclgraph_factory_and_pcp(a5, architecture)
     assert runner.model_state.kvpp_runtime == "kvpp"
     assert runner.pcp_manager.vllm_config is runner.vllm_config
     assert runner.model_state.pcp_manager is runner.pcp_manager
-    assert runner.speculator.pcp_manager is runner.pcp_manager
-    runner.init_routed_experts_capturer.assert_called_once_with()
 
 
 def test_initialize_kv_cache_forwards_allocation_context():
@@ -1241,7 +1354,7 @@ def test_initialize_kv_cache_forwards_allocation_context():
     runner.pcp_manager = None
     runner.model_state = SimpleNamespace(pcp_manager=None, kvpp_runtime=None)
     runner.speculator = None
-    runner.model_config = SimpleNamespace(enable_return_routed_experts=False, architecture="OtherModel")
+    runner.model_config = SimpleNamespace(architecture="OtherModel")
     called = False
     captured_kwargs: dict[str, object] = {}
     allocation_context = object()
@@ -1286,7 +1399,7 @@ def test_initialize_kv_cache_forwards_allocation_context():
 def test_profile_run_dummy_reserves_mc2(moe_type, randomize_inputs):
     runner = _make_runner()
     runner.max_num_tokens = 16
-    runner.vllm_config = SimpleNamespace(parallel_config=SimpleNamespace(prefill_context_parallel_size=1))
+    runner.vllm_config = SimpleNamespace()
     runner.get_model = MagicMock(return_value="m")
     runner._dummy_run = MagicMock()
     with (
@@ -1361,47 +1474,6 @@ def test_profile_run_skips_mc2_dummy_without_capacity():
     ):
         runner.profile_run()
     runner._dummy_run.assert_not_called()
-
-
-@pytest.mark.parametrize(("pcp_size", "tokens", "expected"), [(1, 16384, 16384), (16, 16384, 1024), (4, 17, 5)])
-@pytest.mark.parametrize("fail", [False, True])
-@pytest.mark.parametrize("randomize_inputs", [False, True])
-def test_profile_run_uses_pcp_local_tokens_and_restores_budget(pcp_size, tokens, expected, fail, randomize_inputs):
-    expected_randomize = randomize_inputs
-    runner = _make_runner()
-    runner.vllm_config.parallel_config.prefill_context_parallel_size = pcp_size
-    runner.max_num_tokens = tokens
-
-    def parent_profile(self, randomize_inputs=False):
-        assert randomize_inputs == expected_randomize
-        assert self.max_num_tokens == expected
-        if fail:
-            raise RuntimeError("profile failed")
-
-    with (
-        patch("vllm_ascend.worker.v2.model_runner.get_mc2_tokens_capacity", return_value=None),
-        patch.object(GPUModelRunner, "profile_run", parent_profile),
-    ):
-        if fail:
-            with pytest.raises(RuntimeError, match="profile failed"):
-                runner.profile_run(randomize_inputs=randomize_inputs)
-        else:
-            runner.profile_run(randomize_inputs=randomize_inputs)
-    assert runner.max_num_tokens == tokens
-
-
-def test_profile_run_compares_mc2_capacity_with_pcp_local_budget():
-    runner = _make_runner()
-    runner.max_num_tokens = 16384
-    runner.vllm_config.parallel_config.prefill_context_parallel_size = 16
-    runner._dummy_run = Mock()
-    with (
-        patch("vllm_ascend.worker.v2.model_runner.get_mc2_tokens_capacity", return_value=2048),
-        patch.object(GPUModelRunner, "profile_run"),
-    ):
-        runner.profile_run()
-    runner._dummy_run.assert_not_called()
-    assert runner.max_num_tokens == 16384
 
 
 def test_profile_run_reserves_sparse_offload_topk_buffers():
@@ -1886,11 +1958,15 @@ def test_cpu_length_sync_preserves_original_condition_except_v41(model_type, spe
     output.scheduled_cached_reqs.req_ids = batch.req_ids
     runner.model_config.hf_config.model_type = model_type
     runner.sync_spec_pp_cpu_counts = pp_sync
-    runner._copy_num_computed_tokens_to_cpu = MagicMock()
+    runner.num_computed_tokens_stream = MagicMock()
     expected = pp_sync or (speculative and model_type != "deepseek_v41")
-    with patch.object(GPUModelRunner, "postprocess_sampled"):
+    with (
+        patch.object(GPUModelRunner, "postprocess_sampled"),
+        patch("torch.cuda.current_stream"),
+        patch("torch.npu.stream", return_value=nullcontext()),
+    ):
         runner.postprocess_sampled("idx", "tok", 3, 2)
-    assert runner._copy_num_computed_tokens_to_cpu.call_count == int(expected)
+    assert runner.num_computed_tokens_event.record.call_count == int(expected)
     runner._update_seq_lens_cpu(output, batch.req_ids)
     assert runner.num_computed_tokens_event.synchronize.call_count == int(expected)
     if expected:
@@ -1901,11 +1977,11 @@ def test_device_only_postprocess_keeps_device_update_without_d2h():
     runner = _make_runner()
     runner.speculator = object()
     runner.model_config.hf_config.model_type = "deepseek_v41"
-    runner._copy_num_computed_tokens_to_cpu = MagicMock()
+    runner.num_computed_tokens_event = MagicMock()
     with patch.object(GPUModelRunner, "postprocess_sampled") as parent:
         runner.postprocess_sampled("idx", "tok", 3, 2, query_start_loc="q")
     parent.assert_called_once_with("idx", "tok", 3, 2, "q")
-    runner._copy_num_computed_tokens_to_cpu.assert_not_called()
+    runner.num_computed_tokens_event.record.assert_not_called()
 
 
 def test_device_only_cpu_lengths_remain_upper_bounds_without_event_wait():
@@ -1918,3 +1994,82 @@ def test_device_only_cpu_lengths_remain_upper_bounds_without_event_wait():
     for i, req_id in enumerate(batch.req_ids):
         index = runner.req_states.req_id_to_index[req_id]
         assert runner.input_buffers.seq_lens_cpu[i] == before[index] + output.num_scheduled_tokens[req_id]
+
+
+def _device_length_runner():
+    runner, output, batch, _ = _prepare_inputs_runner(speculator=True)
+    runner.model_config.hf_text_config = SimpleNamespace(model_type="glm_moe_dsa")
+    runner.speculative_config = SimpleNamespace(
+        method="dflash",
+        draft_model_config=SimpleNamespace(architectures=["DFlash2DraftModel"]),
+    )
+    return runner, output, batch
+
+
+def test_glm_dflash2_device_lengths_do_not_require_attention_groups():
+    runner, _, _ = _device_length_runner()
+    del runner.attn_groups
+    assert runner._can_skip_spec_cpu_length_sync() is True
+
+
+@pytest.mark.parametrize(
+    "unsupported",
+    ["no_spec_config", "no_speculator", "method", "no_draft_config", "draft_arch", "target_arch"],
+)
+def test_dflash_device_length_policy_falls_back(unsupported):
+    runner, _, _ = _device_length_runner()
+    if unsupported == "no_spec_config":
+        runner.speculative_config = None
+    elif unsupported == "no_speculator":
+        runner.speculator = None
+    elif unsupported == "method":
+        runner.speculative_config.method = "eagle"
+    elif unsupported == "no_draft_config":
+        runner.speculative_config.draft_model_config = None
+    elif unsupported == "draft_arch":
+        runner.speculative_config.draft_model_config.architectures = ["OtherDraftModel"]
+    elif unsupported == "target_arch":
+        runner.model_config.hf_text_config.model_type = "other_model"
+    assert runner._can_skip_spec_cpu_length_sync() is False
+
+
+@pytest.mark.parametrize("model_type", ["deepseek_v41", "glm_moe_dsa"])
+def test_pp_exact_counts_override_device_length_exemption(model_type):
+    runner, _, _ = _device_length_runner()
+    runner.model_config.hf_config.model_type = model_type
+    runner.sync_spec_pp_cpu_counts = True
+    assert runner._can_skip_spec_cpu_length_sync() is False
+
+
+@pytest.mark.parametrize("rejected", [0, 1, 5])
+def test_dflash_rejection_reorder_and_padding_keep_device_lengths_without_d2h(rejected):
+    runner, output, _ = _device_length_runner()
+    runner.num_computed_tokens_cpu.fill_(-99)  # An old staging snapshot must never be read.
+    runner.input_buffers.seq_lens_cpu.fill_(777)
+    runner.req_states.num_computed_tokens_cpu[:] = torch.tensor([100, 200, 0, 0])
+    runner.req_states.num_computed_tokens.gpu[:] = torch.tensor([98, 195, 0, 0])
+    expected_device = runner.req_states.num_computed_tokens.gpu.clone()
+
+    def reject(_self, idx_mapping, _tokens, _num_sampled, num_rejected, _query_start_loc):
+        runner.req_states.num_computed_tokens.gpu[idx_mapping] -= num_rejected
+
+    for req_ids in (["r1", "r0"], ["r0", "r1"]):
+        expected_device[:2] -= rejected
+        before = runner.req_states.num_computed_tokens_cpu.clone()
+        with patch.object(GPUModelRunner, "postprocess_sampled", reject):
+            runner.postprocess_sampled(torch.tensor([1, 0]), None, 1, rejected)
+        runner._update_seq_lens_cpu(output, req_ids)
+        torch.testing.assert_close(runner.req_states.num_computed_tokens.gpu, expected_device)
+        torch.testing.assert_close(runner.req_states.num_computed_tokens_cpu, before)
+        assert runner.input_buffers.seq_lens_cpu[:2].tolist() == [
+            int(before[runner.req_states.req_id_to_index[req_id]]) + output.num_scheduled_tokens[req_id]
+            for req_id in req_ids
+        ]
+        assert runner.input_buffers.seq_lens_cpu[2:].tolist() == [777, 777]
+        # Simulate the upstream optimistic host count advancing to the next step.
+        runner.req_states.num_computed_tokens_cpu[:2] += 6
+        runner.req_states.num_computed_tokens.gpu[:2] += 6
+        expected_device[:2] += 6
+    runner.num_computed_tokens_event.record.assert_not_called()
+    runner.num_computed_tokens_event.synchronize.assert_not_called()
+    assert runner.num_computed_tokens_cpu.tolist() == [-99] * 4

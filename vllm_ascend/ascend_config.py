@@ -569,8 +569,9 @@ class AscendConfig:
     # FULL graphs wait on descriptor-specific external events at consumers.
     # Default to overlap on A5 only; explicit settings override this policy.
     multistream_engram_overlap: bool = dataclasses.field(
-        default_factory=lambda: get_current_hardware_profile().device_adaptor_family
-        == DeviceAdaptorFamily.FP8_OPTIMIZED
+        default_factory=lambda: (
+            get_current_hardware_profile().device_adaptor_family == DeviceAdaptorFamily.FP8_OPTIMIZED
+        )
     )
     enable_prefill_mc2: bool = False
     multistream_overlap_shared_expert: bool = False
@@ -828,7 +829,7 @@ class AscendConfig:
                 )
 
         finegrained_tp_enabled = (
-            self.finegrained_tp_config.oproj_tensor_parallel_size > 0
+            self.finegrained_tp_config.oproj_tensor_parallel_size > 1
             or self.finegrained_tp_config.mlp_tensor_parallel_size > 0
         )
         if finegrained_tp_enabled and not self.scheduler_config.recompute_scheduler_enable:
@@ -876,8 +877,15 @@ class AscendConfig:
                     "in the MLA attention path."
                 )
 
-        # PD tp_ratio / head_ratio / num_head_replica derivation
-        if vc.kv_transfer_config is not None and vc.model_config is not None and not vc.model_config.is_deepseek_mla:
+        # Legacy layerwise all-to-all groups require P TP >= D TP.
+        # Mooncake V2 maps TP shards per layer in the pull worker in either
+        # direction and must leave these legacy group ratios at their defaults.
+        if (
+            vc.kv_transfer_config is not None
+            and vc.model_config is not None
+            and not vc.model_config.is_deepseek_mla
+            and vc.kv_transfer_config.kv_connector != "MooncakeConnectorV2"
+        ):
             prefill_tp_size = vc.kv_transfer_config.get_from_extra_config("prefill", {"tp_size": 1})["tp_size"]
             decode_tp_size = vc.kv_transfer_config.get_from_extra_config("decode", {"tp_size": 1})["tp_size"]
             assert prefill_tp_size % decode_tp_size == 0, "Prefill TP size must be divisible by Decode TP size."
@@ -963,6 +971,15 @@ class AscendConfig:
                 raise ValueError(
                     "enable_batch_sharded_sampling is incompatible with "
                     "finegrained_tp_config.lmhead_tensor_parallel_size. "
+                    "Please disable one of them."
+                )
+            if (
+                self.enable_pcp_embedding_lmhead_weight_sharding
+                and vc.parallel_config.prefill_context_parallel_size > 1
+            ):
+                raise ValueError(
+                    "batch-sharded sampling is incompatible with "
+                    "enable_pcp_embedding_lmhead_weight_sharding when PCP is enabled. "
                     "Please disable one of them."
                 )
 

@@ -2,5 +2,7 @@ pr: 3
 entries:
   - category: bugfix
     text: >-
-      Fixed Qwen3.8 Flash Next six-region KV cache initialization with
-      ModelRunner V2 and Mooncake V2 prefill/decode disaggregation.
+      Fixed Qwen3.8 Flash Next shared KV cache allocation and memory budgeting
+      with ModelRunner V2 and Mooncake V2 prefill/decode disaggregation.
+      Equal and unequal tensor parallel configurations preserve physical cache
+      strides and transfer replicated PLE state without TP sharding.

@@ -158,6 +158,29 @@ class TestAscendConfig(TestBase):
         config._sparse_li_layer_filter_enabled = AscendConfig._has_sparse_li_layer_config(quant_config)
         return config
 
+    @_clean_up_ascend_config
+    @patch("vllm_ascend.platform.NPUPlatform.check_and_update_config")
+    def test_oproj_recompute_scheduler_required_only_for_sharding(self, mock_fix_incompatible_config):
+        for otp_size, mlp_size in ((0, 0), (1, 0), (2, 0), (8, 0), (1, 1)):
+            with self.subTest(otp_size=otp_size, mlp_size=mlp_size):
+                clear_ascend_config()
+                config = VllmConfig()
+                config.model_config.is_moe = True
+                config.additional_config = {
+                    "finegrained_tp_config": {
+                        "oproj_tensor_parallel_size": otp_size,
+                        "mlp_tensor_parallel_size": mlp_size,
+                    },
+                    "scheduler_config": {"recompute_scheduler_enable": False},
+                }
+                if otp_size > 1 or mlp_size > 0:
+                    with self.assertRaisesRegex((AssertionError, ValueError), "recompute_scheduler_enable=true"):
+                        init_ascend_config(config)
+                else:
+                    result = init_ascend_config(config)
+                    self.assertFalse(result.scheduler_config.recompute_scheduler_enable)
+                    self.assertEqual(result.finegrained_tp_config.oproj_tensor_parallel_size, otp_size)
+
     def test_sparse_li_c8_layer_filter_uses_indexer_quant_type(self):
         config = self._make_sparse_li_c8_config(
             {
@@ -2287,3 +2310,52 @@ class TestEngramSharedMemoryDefaults(TestBase):
         config.engram_config = None
         AscendConfig(sparse_kv_offload_config=SparseKVOffloadConfig()).derive_and_validate(config)
         self.assertIsNone(config.engram_config)
+
+
+def test_mooncake_v2_uses_per_layer_tp_mapping():
+    for prefill_tp, decode_tp in [(4, 8), (8, 4), (4, 4)]:
+        for role in ["kv_producer", "kv_consumer"]:
+            clear_ascend_config()
+            config = VllmConfig()
+            config.model_config.get_total_num_kv_heads = lambda: 8
+            config.kv_transfer_config = KVTransferConfig(
+                kv_connector="MooncakeConnectorV2",
+                kv_role=role,
+                kv_connector_extra_config={
+                    "prefill": {"tp_size": prefill_tp},
+                    "decode": {"tp_size": decode_tp},
+                },
+            )
+            try:
+                with patch("vllm_ascend.platform.NPUPlatform.check_and_update_config"):
+                    result = init_ascend_config(config)
+                assert (result.pd_tp_ratio, result.pd_head_ratio, result.num_head_replica) == (1, 1, 1)
+            finally:
+                clear_ascend_config()
+
+
+def test_layerwise_retains_prefill_tp_constraint():
+    import pytest
+
+    for prefill_tp, decode_tp in [(4, 8), (8, 4)]:
+        clear_ascend_config()
+        config = VllmConfig()
+        config.model_config.get_total_num_kv_heads = lambda: 8
+        config.kv_transfer_config = KVTransferConfig(
+            kv_connector="MooncakeLayerwiseConnector",
+            kv_role="kv_producer",
+            kv_connector_extra_config={
+                "prefill": {"tp_size": prefill_tp},
+                "decode": {"tp_size": decode_tp},
+            },
+        )
+        try:
+            with patch("vllm_ascend.platform.NPUPlatform.check_and_update_config"):
+                if prefill_tp < decode_tp:
+                    with pytest.raises((AssertionError, ValueError), match="Prefill TP size must be divisible"):
+                        init_ascend_config(config)
+                else:
+                    result = init_ascend_config(config)
+                    assert (result.pd_tp_ratio, result.pd_head_ratio) == (2, 2)
+        finally:
+            clear_ascend_config()

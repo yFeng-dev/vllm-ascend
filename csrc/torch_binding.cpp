@@ -41,7 +41,7 @@
 #include "gmm/grouped_matmul_swiglu_quant_v2/grouped_matmul_swiglu_quant_v2_torch_adpt.h"
 #include "moe/moe_gating_top_k/moe_gating_top_k_torch_adpt.h"
 #include "attention/sparse_flash_attention/sparse_flash_attention_torch_adpt.h"
-#include "attention/generic_block_sparse_attention/gbsa_torch_adpt.h"
+#include "aclnn_torch_adapter/gbsa_torch_adpt.h"
 #include "attention/sparse_flash_mla/sparse_flash_mla_torch_adpt.h"
 #include "attention/kv_compress_epilog_v2/kv_compress_epilog_v2_torch_adpt.h"
 #include "attention/quant_lightning_indexer_v2/quant_lightning_indexer_v2_torch_adpt.h"
@@ -56,7 +56,6 @@
 #include "attention/kda_layout_swap12/kda_layout_swap12_torch_adpt.h"
 #include "attention/recurrent_gated_delta_rule_v310/recurrent_gated_delta_rule_310_torch_adpt.h"
 #include "attention/k2q_csr/k2q_csr_torch_adpt.h"
-#include "attention/msa_index_score/msa_index_score_torch_adpt.h"
 #include "attention/sparse_attention_score/sparse_attention_score_torch_adpt.h"
 #include "moe/dequant_situ_quant/dequant_situ_quant_torch_adpt.h"
 #include "moe/situ_mx_quant/situ_mx_quant_torch_adpt.h"
@@ -3573,17 +3572,6 @@ TORCH_LIBRARY_EXPAND(CONCAT(_C, _ascend), ops)
     );
     ops.impl("npu_sparse_attention_score", torch::kPrivateUse1,
              &vllm_ascend::npu_sparse_attention_score);
-
-    ops.def(
-        "npu_msa_index_score("
-        "Tensor query, Tensor key, Tensor block_table, Tensor start_loc, *, "
-        "Tensor? scale=None, Tensor? atten_mask=None, "
-        "Tensor? actual_seq_qlen=None, Tensor? actual_seq_klen=None, "
-        "str layout_key=\"BBND\", int sparse_mode=3, "
-        "int init_blocks=0, int local_blocks=0) -> Tensor"
-    );
-    ops.impl("npu_msa_index_score", torch::kPrivateUse1,
-             &vllm_ascend::npu_msa_index_score);
 
     ops.def(
         "npu_fused_lightning_indexer_manage("
