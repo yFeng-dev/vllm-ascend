@@ -347,12 +347,12 @@ def get_kv_cache_spec(vllm_config: VllmConfig) -> dict[str, KVCacheSpec]:
         if type(spec) is FullAttentionSpec and is_c8_mxfp_kv_quant(vllm_config):
             spec = mxfp_cache_spec(spec)
         # vLLM #42309 annotates EAGLE groups from ``spec.is_draft``, tagged on
-        # the spec while specs are built. The v0.31.0 lane has no ``is_draft``
+        # the spec while specs are built. The v0.32.0 lane has no ``is_draft``
         # field and annotates EAGLE groups through the packed hook, so only main
         # propagates the flag here; without it no group is flagged as the draft
         # model's and the coordinator fallback treats the target groups as
         # EAGLE groups too.
-        if not vllm_version_is("0.31.0") and getattr(attn_module, "is_draft_layer", False):
+        if not vllm_version_is("0.32.0") and getattr(attn_module, "is_draft_layer", False):
             spec = replace(spec, is_draft=True)
         kv_cache_spec[layer_name] = spec
         if isinstance(spec, AttentionSpec) and getattr(attn_module, "align_kv_cache_with_mamba", True):
@@ -596,7 +596,7 @@ def build_attn_metadata(
                 # FULL graph padding appends dummy request boundaries to the
                 # shared query_start_loc, while QSA reads the CPU tail as its
                 # mapped-token count. Expose only the live request boundaries.
-                common_attn_metadata = replace(
+                common_attn_metadata = replace(  # type: ignore[call-arg]
                     common_attn_metadata,
                     query_start_loc_cpu=common_attn_metadata.query_start_loc_cpu[: num_actual_reqs + 1],
                 )
@@ -1181,20 +1181,20 @@ def _allocate_kv_cache(
                 alignment,
                 device,
             )
-            for owner in qwen4_cache_layout.owners:
-                if owner.role in (PLE, HIDDEN):
+            for cache_owner in qwen4_cache_layout.owners:
+                if cache_owner.role in (PLE, HIDDEN):
                     # PLE indexed updates require dense blocks; r2's larger
                     # stride would materialize the entire state pool.
                     size = (
-                        owner.spec.state_content_size_bytes
-                        if isinstance(owner.spec, MambaSpec)
-                        else owner.spec.page_size_bytes
+                        cache_owner.spec.state_content_size_bytes
+                        if isinstance(cache_owner.spec, MambaSpec)
+                        else cache_owner.spec.page_size_bytes
                     )
-                    kv_cache_raw_tensors[owner.layer_name] = _allocate_int8_cache_tensor(
+                    kv_cache_raw_tensors[cache_owner.layer_name] = _allocate_int8_cache_tensor(
                         kv_cache_config.num_blocks * size, alignment, device
                     )
                 else:
-                    kv_cache_raw_tensors[owner.layer_name] = backing
+                    kv_cache_raw_tensors[cache_owner.layer_name] = backing
             return kv_cache_raw_tensors
 
     # The restored DeepSeek-V4 planner on main computes capacity for one
@@ -1285,10 +1285,10 @@ def _allocate_kv_cache(
                     )
                 )
                 continue
-            owner = shared_names[0]
-            if any(layer_kv_cache_spec[name] != layer_kv_cache_spec[owner] for name in shared_names[1:]):
+            owner_name = shared_names[0]
+            if any(layer_kv_cache_spec[name] != layer_kv_cache_spec[owner_name] for name in shared_names[1:]):
                 raise ValueError("Layerwise V2 KV aliases require identical cache specs.")
-            layerwise_aliases.update({name: owner for name in shared_names[1:]})
+            layerwise_aliases.update({name: owner_name for name in shared_names[1:]})
             shared_names = shared_names[:1]
 
         if dsv4_backing is not None:
@@ -1541,8 +1541,8 @@ def _allocate_kv_cache(
                 v_tensor = _allocate_int8_cache_tensor(v_size, alignment, device)
                 kv_cache_raw_tensors[layer_name] = (k_tensor, v_tensor)
 
-    for layer_name, owner in layerwise_aliases.items():
-        kv_cache_raw_tensors[layer_name] = kv_cache_raw_tensors[owner]
+    for layer_name, owner_name in layerwise_aliases.items():
+        kv_cache_raw_tensors[layer_name] = kv_cache_raw_tensors[owner_name]
 
     layer_names = {layer_name for group in kv_cache_config.kv_cache_groups for layer_name in group.layer_names}
     assert layer_names == (kv_cache_raw_tensors.keys() | shared_layers.keys()), (

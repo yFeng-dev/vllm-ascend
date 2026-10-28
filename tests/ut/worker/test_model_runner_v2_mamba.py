@@ -23,7 +23,6 @@ from vllm.v1.worker.gpu.model_states.mamba_hybrid import MambaHybridModelState
 from vllm_ascend.core.kv_cache_interface import AscendMLAAttentionSpec
 from vllm_ascend.device.hardware import AscendDeviceType
 from vllm_ascend.device.hardware_profile import get_hardware_profile
-from vllm_ascend.utils import vllm_version_is
 from vllm_ascend.worker.v2 import attn_utils
 from vllm_ascend.worker.v2.attn_utils import (
     _align_hybrid_attention_page_sizes,
@@ -205,12 +204,9 @@ def test_layerwise_connector_defers_mamba_pre_copy(mock_has_group, mock_get_grou
     kv_cache_config = _kv_cache_config(spec)
     state = _make_defer_state(kv_cache_config)
     ctx = MagicMock()
-    if vllm_version_is("0.31.0"):
-        state._ensure_align_ctx = MagicMock(return_value=ctx)
-    else:
-        # vLLM main removed `MambaHybridModelState._ensure_align_ctx`; the
-        # Ascend override must resolve the context built in initialize_kv_cache.
-        state._mamba_ctx = ctx
+    # vLLM main removed `MambaHybridModelState._ensure_align_ctx`; the
+    # Ascend override must resolve the context built in initialize_kv_cache.
+    state._mamba_ctx = ctx
     input_batch = SimpleNamespace(
         num_reqs=2,
         idx_mapping=torch.arange(2, dtype=torch.int32),
@@ -234,7 +230,6 @@ def test_layerwise_connector_defers_mamba_pre_copy(mock_has_group, mock_get_grou
     connector.finish_mamba_state_copy.assert_called_once()
 
 
-@pytest.mark.skipif(vllm_version_is("0.31.0"), reason="main-only regression: _ensure_align_ctx moved")
 def test_ensure_align_ctx_falls_back_to_mamba_ctx():
     # vLLM main removed `MambaHybridModelState._ensure_align_ctx`; the Ascend
     # override must return the context built in initialize_kv_cache instead of
@@ -247,7 +242,6 @@ def test_ensure_align_ctx_falls_back_to_mamba_ctx():
     assert state._ensure_align_ctx(kv_cache_config, [0], ()) is ctx
 
 
-@pytest.mark.skipif(vllm_version_is("0.31.0"), reason="main-only regression: _ensure_align_ctx moved")
 def test_ensure_align_ctx_lazily_recreates_mamba_ctx():
     # The align context can be absent when preprocess_state runs (e.g. it was
     # torn down by the CUDA-graph memory profiler), so the main-lane override
@@ -904,6 +898,9 @@ def test_mamba_spec_follows_aligned_attention_spec(
         def get_kv_cache_spec(self, _vllm_config):
             return attention_spec
 
+        def get_attn_backend(self):
+            return SimpleNamespace(uses_descriptor_cache_view=False)
+
     mamba_layer = MagicMock()
     mamba_layer.kv_sharing_target_layer_name = None
     mamba_layer.get_kv_cache_spec.return_value = mamba_spec
@@ -955,6 +952,9 @@ def test_get_kv_cache_spec_rejects_nondivisible_hybrid_attention_pages(
 
         def get_kv_cache_spec(self, _vllm_config):
             return self.spec
+
+        def get_attn_backend(self):
+            return SimpleNamespace(uses_descriptor_cache_view=False)
 
     mamba_layer = MagicMock()
     mamba_layer.kv_sharing_target_layer_name = None
@@ -1012,7 +1012,10 @@ def test_hybrid_dflash_writes_preserve_other_request_blocks(
         additional_config={},
     )
     layers = {
-        name: SimpleNamespace(get_kv_cache_spec=lambda _config, spec=spec: spec)
+        name: SimpleNamespace(
+            get_kv_cache_spec=lambda _config, spec=spec: spec,
+            get_attn_backend=lambda: SimpleNamespace(uses_descriptor_cache_view=False),
+        )
         for name, spec in original_specs.items()
     }
     monkeypatch.setattr(attn_utils, "get_layers_from_vllm_config", lambda *_args: layers)
