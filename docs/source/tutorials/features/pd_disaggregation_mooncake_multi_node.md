@@ -8,6 +8,37 @@ Take the DeepSeek-r1-w8a8 model as an example, use 4 Atlas 800T A3 servers to de
 
 ## Verify Multi-Node Communication Environment
 
+### DeepSeek V4.1 layerwise configuration
+
+DeepSeek V4.1 can use `MooncakeLayerwiseConnector` with the same TP size,
+logical block sizes, cache layout, and connector version on P and D. The initial
+implementation requires PP=PCP=DCP=1, no microbatching, and no speculative decoding
+(MTP/DSpark). A checkpoint containing MTP weights can be used with speculative
+decoding disabled. Model W8A8 quantization is independent of the connector's
+transfer quantization; head resharding and transfer-time KV/C8 quantization are
+unsupported.
+
+On both instances, disable prefix caching and SWA bounded replay. Use
+`--no-enable-prefix-caching --no-swa-bounded-replay --enforce-eager` for the initial
+validation. `FULL_DECODE_ONLY` is also accepted; prefill must run outside a full
+graph so that the per-layer publication hooks execute for every request.
+Keep the existing producer/consumer roles and proxy routing described below,
+and select `MooncakeLayerwiseConnector` in `--kv-transfer-config` on both peers.
+
+Each backbone layer publishes its SWA cache and any long KV, index K/scale, or
+C2 compressor state that it owns after cache writes complete. Transfers use each
+component's cache group and physical page stride, preserving other components
+that share the same backing allocation. TopK work buffers are recomputed on D.
+For prompts longer than one token, P computes the first N-1 tokens and D computes
+the final prompt token against the transferred state before sampling.
+
+Chunked prefill is accepted, but only its final chunk publishes a complete
+snapshot, layer by layer. The P worker drains outstanding transfers before the
+request's pages can be reused. D waits for request completion before starting;
+this implementation overlaps P computation and transfer, not P and D layer
+execution. NPU end-to-end correctness and performance must be validated for the
+deployment before production use.
+
 ### Physical Layer Requirements
 
 - The physical machines must be located on the same LAN, with network connectivity.

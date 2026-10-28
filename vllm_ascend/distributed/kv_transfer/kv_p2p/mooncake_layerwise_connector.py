@@ -55,6 +55,12 @@ from vllm.v1.kv_cache_interface import (
 from vllm.v1.worker.utils import extract_layer_index
 
 from vllm_ascend.ascend_config import get_ascend_config
+from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.v41_layerwise import (
+    is_v41_model,
+    select_v41_block_pairs,
+    strided_transfer_ranges,
+    validate_v41_layerwise_config,
+)
 from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake_connector import GET_META_MSG
 from vllm_ascend.distributed.kv_transfer.utils.mooncake_transfer_engine import global_te
 from vllm_ascend.distributed.kv_transfer.utils.utils import (
@@ -99,6 +105,8 @@ class LayerMetadata:
     kv_caches_base_addr: list[int]
     block_len: list[int]
     block_size_scale: list[int]
+    block_stride: list[int] = field(default_factory=list)
+    layout: str = ""
 
 
 class MooncakeAgentMetadata(msgspec.Struct, omit_defaults=True, dict=True):
@@ -341,6 +349,14 @@ class KVCacheSendingLayerThread(threading.Thread):
         local_layer_metadata = self.layer_metadata[layer_name]
         local_block_ids = req_meta.local_block_ids[layer_group_idx]
 
+        if local_layer_metadata.layout:
+            remote_group = remote_layer_metadata.tensor_group_idx[0]
+            if remote_group != layer_group_idx:
+                raise ValueError("V4.1 Mooncake peers must use the same cache group ordering")
+            return strided_transfer_ranges(
+                local_block_ids, remote_block_ids, local_layer_metadata, remote_layer_metadata
+            )
+
         if isinstance(layer_kv_cache_spec, MambaSpec):
             # only support one block transfer for mamba
             if self.mamba_cache_mode == "align":
@@ -519,19 +535,19 @@ class KVCacheSendingLayerThread(threading.Thread):
         # Merge transmission tasks of the same session
         session_meta: dict[str, TransferMeta] = {}
         layer_names = send_task.layer_names or [send_task.layer_name]
-        layer_group_idx = self.layer_metadata[send_task.layer_name].tensor_group_idx[0]
         for req_id, req_meta in send_task.send_request.items():
             session_id = f"{req_meta.remote_host}:{req_meta.remote_te_rpc_port}"
             if session_id not in session_meta:
                 session_meta[session_id] = TransferMeta(src=[], dst=[], length=[], req_ids=[])
 
             for layer_name in layer_names:
+                component_group_idx = self.layer_metadata[layer_name].tensor_group_idx[0]
                 src_list, dst_list, length_list = self.get_transfer_meta(
                     send_task,
                     req_id,
                     req_meta,
                     layer_name,
-                    layer_group_idx,
+                    component_group_idx,
                 )
                 session_meta[session_id].src.extend(src_list)
                 session_meta[session_id].dst.extend(dst_list)
@@ -746,6 +762,7 @@ class MooncakeLayerwiseConnectorMetadata(KVConnectorMetadata):
 
 
 class MooncakeLayerwiseConnector(KVConnectorBase_V1, SupportsHMA):
+    _is_v41 = False
     requires_full_blocks_on_update_after_alloc = True
     supports_layerwise_buffer_reuse = True
 
@@ -753,6 +770,9 @@ class MooncakeLayerwiseConnector(KVConnectorBase_V1, SupportsHMA):
         super().__init__(vllm_config, role, kv_cache_config)
         assert vllm_config.kv_transfer_config is not None
         self._is_kv_producer = vllm_config.kv_transfer_config.is_kv_producer
+        self._is_v41 = is_v41_model(vllm_config)
+        if self._is_v41:
+            validate_v41_layerwise_config(vllm_config)
         self.is_producer = self._is_kv_producer
         self.engine_id = vllm_config.kv_transfer_config.engine_id
         self._connector_metadata = MooncakeLayerwiseConnectorMetadata()
@@ -858,6 +878,16 @@ class MooncakeLayerwiseConnector(KVConnectorBase_V1, SupportsHMA):
         assert self.connector_worker is not None
         self.connector_worker.on_kv_cache_written(layer_name)
 
+    def save_v41_kv_layer(self, layer_name: str) -> None:
+        """Publish every cache component owned by one V4.1 backbone layer."""
+        if not self._is_v41 or not self._is_kv_producer or not self.has_connector_metadata():
+            return
+        assert self.connector_worker is not None
+        if not self._connector_metadata.requests:
+            return
+        self.connector_worker.on_kv_cache_written(layer_name)
+        self.connector_worker.save_kv_layer(layer_name, [], None, self._connector_metadata)
+
     def save_kv_layer(
         self, layer_name: str, kv_layer: list[torch.Tensor], attn_metadata: "AttentionMetadata", **kwargs
     ) -> None:
@@ -867,12 +897,20 @@ class MooncakeLayerwiseConnector(KVConnectorBase_V1, SupportsHMA):
         self.connector_worker.save_kv_layer(layer_name, kv_layer, attn_metadata, self._connector_metadata)
 
     def wait_for_save(self):
-        """MooncakeLayerwiseConnector does not save explicitly."""
-        pass
+        """Keep V4.1 request pages alive until all queued transfers finish."""
+        if self._is_v41 and self._is_kv_producer:
+            # V4.1 aliases groups in backing allocations. Keep request pages
+            # alive until the sender has stopped reading them, including aborts.
+            assert self.connector_worker is not None
+            self.connector_worker.kv_send_layer_thread.send_queue.join()
+            if self.has_connector_metadata():
+                self.connector_worker.check_v41_step_complete(self._connector_metadata)
 
 
 class MooncakeLayerwiseConnectorScheduler:
     """Implementation of Scheduler side methods"""
+
+    _is_v41 = False
 
     def __init__(self, vllm_config: VllmConfig, kv_cache_config: KVCacheConfig, engine_id: str):
         self.vllm_config = vllm_config
@@ -900,7 +938,8 @@ class MooncakeLayerwiseConnectorScheduler:
         # the scheduler. Used to make metadata passed to Worker.
         self._reqs_need_recv: dict[str, tuple[Request, list[int], list[list[int]]]] = {}
         self._reqs_need_send_layerwise: dict[str, SendReqInfo] = {}
-        self.need_truncate = self._has_attn_mamba_hybrid_cache(kv_cache_config)
+        self._is_v41 = is_v41_model(vllm_config)
+        self.need_truncate = self._is_v41 or self._has_attn_mamba_hybrid_cache(kv_cache_config)
         self.executor = ThreadPoolExecutor(32)
         tls_config: dict[str, Any] = vllm_config.kv_transfer_config.get_from_extra_config("tls_config", {})
         ssl_keyfile = tls_config.get("ssl_keyfile")
@@ -963,6 +1002,10 @@ class MooncakeLayerwiseConnectorScheduler:
         params["_p_side_truncated"] = True
 
     def _trim_hybrid_remote_block_ids(self, block_ids: tuple[list[int], ...], prompt_len: int) -> tuple[list[int], ...]:
+        if self._is_v41:
+            # Pair using original-token positions later. Circular pages must
+            # not be truncated according to the prompt's block alignment.
+            return block_ids
         if not self.need_truncate or prompt_len <= 1:
             return block_ids
 
@@ -1211,6 +1254,8 @@ class MooncakeLayerwiseConnectorScheduler:
 class MooncakeLayerwiseConnectorWorker:
     """Implementation of Worker side methods"""
 
+    _is_v41 = False
+
     def __init__(self, vllm_config: VllmConfig, kv_cache_config: KVCacheConfig, engine_id: str):
         os.environ["ASCEND_TRANSFER_TIMEOUT"] = str(get_transfer_timeout_value())
 
@@ -1221,6 +1266,7 @@ class MooncakeLayerwiseConnectorWorker:
         # Metadata.
         self.vllm_config = vllm_config
         self.kv_cache_config = kv_cache_config
+        self._is_v41 = is_v41_model(vllm_config)
         self.num_kv_cache_groups = len(self.kv_cache_config.kv_cache_groups)
         self.kv_cache_specs: list[KVCacheSpec] = [spec.kv_cache_spec for spec in self.kv_cache_config.kv_cache_groups]
         self.local_engine_id: str = " "
@@ -1280,6 +1326,10 @@ class MooncakeLayerwiseConnectorWorker:
         )
         self.pd_head_ratio = get_ascend_config().pd_head_ratio
         self.num_head_replica = get_ascend_config().num_head_replica
+        if self._is_v41 and (self.pd_head_ratio != 1 or self.enable_kv_quant or self.enable_c8_quant):
+            raise ValueError(
+                "V4.1 layerwise transfers native cache records without head resharding or transfer quantization"
+            )
         self.resharding_stream = None
         if self.pd_head_ratio > 1 or self.enable_kv_quant or self.enable_c8_quant:
             self.resharding_stream = torch.npu.Stream()
@@ -1455,6 +1505,18 @@ class MooncakeLayerwiseConnectorWorker:
                 if kv_buffer is None:
                     kv_buffer = kv_cache_tuple
             single_layer_meta = LayerMetadata([], [], [], [])
+            if self._is_v41:
+                single_layer_meta.layout = repr(
+                    (
+                        "v41-layerwise-v1",
+                        type(layer_kv_cache_spec).__name__,
+                        layer_kv_cache_spec.block_size,
+                        getattr(layer_kv_cache_spec, "tokens_per_state", 1),
+                        getattr(layer_kv_cache_spec, "sliding_window", None),
+                        getattr(layer_kv_cache_spec, "cache_dtype_str", None),
+                        tuple((str(t.dtype), tuple(t.shape[1:])) for t in kv_cache_tuple),
+                    )
+                )
             for single_kv_cache in kv_cache_tuple:
                 block_start_rank = 1
                 num_blocks = self.kv_cache_config.num_blocks
@@ -1477,6 +1539,10 @@ class MooncakeLayerwiseConnectorWorker:
                 single_layer_meta.kv_caches_base_addr.append(single_kv_cache.data_ptr())
                 single_layer_meta.block_len.append(single_kv_cache.element_size() * math.prod(block_shape))
                 single_layer_meta.block_size_scale.append(block_size_scale)
+                if self._is_v41:
+                    if block_size_scale != 1:
+                        raise ValueError("V4.1 layerwise requires one physical page per logical block")
+                    single_layer_meta.block_stride.append(single_kv_cache.stride(0) * single_kv_cache.element_size())
                 self.kernel_block_size_scale[layer2group_ids[layer_name]] = block_size_scale
                 if single_kv_cache.data_ptr() not in ptrs and not self.use_attn_mamba_hybrid:
                     ptrs.append(single_kv_cache.data_ptr())
@@ -1522,13 +1588,15 @@ class MooncakeLayerwiseConnectorWorker:
         for layer_names in self.index_to_name.values():
             layer_names.sort(key=lambda name: "indexer" in name.lower())
             primary_group_idx = self.layer_metadata[layer_names[0]].tensor_group_idx[0]
-            assert all(self.layer_metadata[name].tensor_group_idx[0] == primary_group_idx for name in layer_names), (
-                f"Mooncake layerwise merged components must share one KV cache group. layer_names={layer_names}"
-            )
+            assert self._is_v41 or all(
+                self.layer_metadata[name].tensor_group_idx[0] == primary_group_idx for name in layer_names
+            ), f"Mooncake layerwise merged components must share one KV cache group. layer_names={layer_names}"
         if mtp_layer_name != "":
             self.index_to_name[max(self.index_to_name.keys()) + 1].append(mtp_layer_name)
         if self.index_to_name:
             self.total_layers = max(self.total_layers, max(self.index_to_name) + 1)
+        if self._is_v41 and set(self.index_to_name) != set(range(self.total_layers)):
+            raise ValueError("V4.1 layerwise requires every backbone layer to have a registered SWA cache")
 
         self._init_layerwise_reuse_state()
 
@@ -1798,6 +1866,9 @@ class MooncakeLayerwiseConnectorWorker:
         """Prepare layerwise hooks once, when metadata is bound before forward."""
         self.current_layer = 0
         self._cache_write_events = [None] * self.total_layers
+        if self._is_v41 and self.vllm_config.kv_transfer_config.is_kv_producer:
+            self._prepare_v41_step(metadata)
+            return
         if self.vllm_config.kv_transfer_config.is_kv_producer:
             # update trans info
             update_metadata = {}
@@ -1872,6 +1943,48 @@ class MooncakeLayerwiseConnectorWorker:
                         [send_task.group_num_tokens[i]], dtype=torch.int32, device=device
                     )
                     send_task.group_seq_start_tensor[i] = torch.tensor([0], dtype=torch.int32, device=device)
+
+    def _prepare_v41_step(self, metadata: MooncakeLayerwiseConnectorMetadata) -> None:
+        requests = {}
+        for req_id, req_meta in metadata.requests.items():
+            # SWA and C2 are mutable request state. Publish their final snapshot
+            # with the full prefix at the last chunk, then drain before reuse.
+            if not req_meta.chunk_finish:
+                continue
+            if (req_meta.remote_tp_size, req_meta.remote_pcp_size, req_meta.remote_dcp_size) != (self.tp_size, 1, 1):
+                raise ValueError("V4.1 layerwise requires matching P/D TP sizes and PCP=DCP=1")
+            if list(req_meta.remote_block_size) != self.block_size:
+                raise ValueError("V4.1 layerwise requires matching P/D logical block sizes")
+            if (
+                len(req_meta.local_block_ids) != self.num_kv_cache_groups
+                or len(req_meta.remote_block_ids) != self.num_kv_cache_groups
+            ):
+                raise ValueError("V4.1 layerwise cache group count mismatch")
+            updated = copy.deepcopy(req_meta)
+            updated.local_block_ids = []
+            updated.remote_block_ids = []
+            for index, spec in enumerate(self.kv_cache_specs):
+                local, remote = select_v41_block_pairs(
+                    req_meta.local_block_ids[index],
+                    req_meta.remote_block_ids[index],
+                    spec,
+                    req_meta.local_computed_tokens,
+                )
+                updated.local_block_ids.append(local)
+                updated.remote_block_ids.append(remote)
+            updated.remote_port += self.tp_rank
+            updated.trans_count = [1] * self.num_kv_cache_groups
+            requests[req_id] = updated
+        metadata.requests = requests
+
+    def check_v41_step_complete(self, metadata: MooncakeLayerwiseConnectorMetadata) -> None:
+        if not metadata.requests or self.current_layer == self.total_layers:
+            return
+        # Do not leave D waiting forever if a forward exits before the last
+        # layer publishes. The queue has been drained before sending failure.
+        for req_id, req_meta in metadata.requests.items():
+            self.send_done_send_signal(req_id, req_meta, 0, trans_flag=False)
+        raise RuntimeError(f"V4.1 layerwise published {self.current_layer} of {self.total_layers} layers")
 
     def on_kv_cache_written(self, layer_name: str) -> None:
         if self.current_layer >= self.total_layers:
