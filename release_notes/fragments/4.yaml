@@ -1,0 +1,4 @@
+pr: 4
+entries:
+  - category: feature
+    text: Added DeepSeek V4.1 backbone PD transfer with MooncakeLayerwiseConnector, including SWA, compressed KV/index caches and C2 state. The initial implementation requires matching P/D TP sizes and disables prefix caching, SWA bounded replay, context parallelism, and speculative decoding.

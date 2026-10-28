@@ -1863,6 +1863,31 @@ class TestMooncakeLayerwiseConnectorWorker(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "must share one KV cache group"):
             worker.register_kv_caches(kv_caches)
 
+    def test_register_v41_components_keeps_groups_and_physical_stride(self):
+        names = ["model.layers.0.self_attn.swa_cache", "model.layers.0.self_attn.long_kv_cache"]
+        groups, caches = [], {}
+        for group_id, name in enumerate(names):
+            spec = SimpleNamespace(block_size=16, tokens_per_state=1)
+            groups.append(SimpleNamespace(layer_names=[name], kv_cache_spec=spec))
+            cache = MagicMock()
+            cache.shape = (10, 16, 1, 8)
+            cache.dtype = torch.bfloat16
+            cache.data_ptr.return_value = 0x10000 + group_id * 512
+            cache.element_size.return_value = 2
+            cache.stride.return_value = 2048
+            caches[name] = cache
+        config = SimpleNamespace(kv_cache_groups=groups, kv_cache_tensors=[], num_blocks=10)
+        worker = MooncakeLayerwiseConnectorWorker(self.vllm_config, config, self.engine_id)
+        worker._is_v41 = True
+        worker.register_kv_caches(caches)
+        assert worker.index_to_name[0] == names
+        for group_id, name in enumerate(names):
+            meta = worker.layer_metadata[name]
+            assert meta.tensor_group_idx == [group_id]
+            assert meta.block_stride == [4096]
+            assert meta.block_len == [256]
+            assert "v41-layerwise-v1" in meta.layout
+
     def test_register_kv_caches_uses_main_cache_for_quant_staging_buffer(self):
         main_name = "model.layers.0.self_attn.attn"
         indexer_name = "model.layers.0.self_attn.indexer.k_cache"

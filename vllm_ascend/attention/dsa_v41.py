@@ -17,6 +17,7 @@ import torch.nn.functional as F
 from torch import nn
 from vllm.compilation.breakable_cudagraph import eager_break_during_capture
 from vllm.config import VllmConfig
+from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
 from vllm.forward_context import get_forward_context
 from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
 from vllm.utils.torch_utils import direct_register_custom_op
@@ -55,6 +56,15 @@ from vllm_ascend.worker.device_metadata import (
 )
 
 V41_METADATA_BUFFER_SIZE = 1024
+
+
+def publish_v41_kv_layer(layer_name: str) -> None:
+    """Dispatch only to connectors implementing the multi-group V4.1 contract."""
+    if not has_kv_transfer_group():
+        return
+    publish = getattr(get_kv_transfer_group(), "save_v41_kv_layer", None)
+    if publish is not None:
+        publish(layer_name)
 
 
 @eager_break_during_capture
@@ -777,6 +787,9 @@ class AscendDSAV41Impl:
         q, qr, prepared_indexer = self._prepare_inputs_and_caches(
             attn, hidden_states, metadata, forward_context.attn_metadata
         )
+        # Includes cache-only PCP ranks. The preprocess joins SWA's auxiliary
+        # stream and publishes source-owned C2/index/long-KV before this event.
+        publish_v41_kv_layer(self.swa_prefix)
         num_tokens = metadata.swa.num_actual_tokens
         if num_tokens:
             positions = metadata.positions[:num_tokens]
