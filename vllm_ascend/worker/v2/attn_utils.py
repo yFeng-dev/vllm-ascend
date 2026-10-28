@@ -1168,7 +1168,9 @@ def _allocate_kv_cache(
     # build the layout from the cache groups themselves. Allocate
     # slot_count shared slabs plus one dense bank per PLE/hidden owner.
     # Reshape must preserve the physical byte strides used by this planner.
-    if vllm_config.kv_transfer_config is None and not is_dsv4_model:
+    # Mooncake V2 publishes each component's logical length and physical
+    # stride, so the packed pool is also valid for equal/unequal-TP PD.
+    if supports_component_major_mla_pd(vllm_config) and not is_dsv4_model:
         qwen4_cache_layout = build_qwen4_kv_cache_layout(
             kv_cache_config.kv_cache_groups,
             kv_cache_config.num_blocks,
@@ -1651,7 +1653,7 @@ def _reshape_kv_cache_v2(
     # view from the same deterministic layout that _allocate_kv_cache used:
     # Shared slabs hold QSA/GDN slots and indexer regions; PLE/hidden banks are private.
     qwen4_cache_layout = None
-    if vllm_config.kv_transfer_config is None and not is_dsv4_model:
+    if supports_component_major_mla_pd(vllm_config) and not is_dsv4_model:
         qwen4_cache_layout = build_qwen4_kv_cache_layout(
             kv_cache_config.kv_cache_groups,
             kv_cache_config.num_blocks,

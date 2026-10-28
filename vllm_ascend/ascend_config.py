@@ -877,8 +877,15 @@ class AscendConfig:
                     "in the MLA attention path."
                 )
 
-        # PD tp_ratio / head_ratio / num_head_replica derivation
-        if vc.kv_transfer_config is not None and vc.model_config is not None and not vc.model_config.is_deepseek_mla:
+        # Legacy layerwise all-to-all groups require P TP >= D TP.
+        # Mooncake V2 maps TP shards per layer in the pull worker in either
+        # direction and must leave these legacy group ratios at their defaults.
+        if (
+            vc.kv_transfer_config is not None
+            and vc.model_config is not None
+            and not vc.model_config.is_deepseek_mla
+            and vc.kv_transfer_config.kv_connector != "MooncakeConnectorV2"
+        ):
             prefill_tp_size = vc.kv_transfer_config.get_from_extra_config("prefill", {"tp_size": 1})["tp_size"]
             decode_tp_size = vc.kv_transfer_config.get_from_extra_config("decode", {"tp_size": 1})["tp_size"]
             assert prefill_tp_size % decode_tp_size == 0, "Prefill TP size must be divisible by Decode TP size."

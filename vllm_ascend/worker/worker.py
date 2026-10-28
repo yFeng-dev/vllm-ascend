@@ -78,6 +78,7 @@ from vllm.v1.worker.workspace import init_workspace_manager
 import vllm_ascend.envs as envs_ascend
 from vllm_ascend.ascend_config import KVPPConfig, get_ascend_config, init_ascend_config
 from vllm_ascend.batch_invariant import init_batch_invariance
+from vllm_ascend.core.kv_cache_interface import supports_component_major_mla_pd
 from vllm_ascend.core.kv_cache_placement import (
     KVPPPhysicalCachePlan,
     create_kvpp_cache_allocation_plan,
@@ -812,12 +813,19 @@ class NPUWorker(WorkerBase):
         model_runner = getattr(self, "model_runner", None)
         layout = self.vllm_config.cache_config.get_resolved_kv_cache_layout()
         shares_attention_pool = False
+        shares_qwen4_pd_pool = False
         if getattr(self, "use_v2_model_runner", False):
             # Load V2 helpers only for V2 workers; V1 retains private allocation
             # and must keep its original multi-group budget scaling.
+            from vllm_ascend.models.qwen4_exp.cache_config import build_qwen4_kv_cache_layout
             from vllm_ascend.worker.v2.attn_utils import can_share_full_and_sliding_kv_cache
 
             shares_attention_pool = can_share_full_and_sliding_kv_cache(self.vllm_config, per_layer_specs)
+            shares_qwen4_pd_pool = (
+                self.vllm_config.kv_transfer_config is not None
+                and supports_component_major_mla_pd(self.vllm_config)
+                and build_qwen4_kv_cache_layout(kv_cache_groups, 1) is not None
+            )
         # TODO: The Step-3.5/3.7 models will be sunset in the future. Once they
         # are, remove this is_step_model exemption: this line and the
         # `or is_step_model` budget gate below.
@@ -826,7 +834,7 @@ class NPUWorker(WorkerBase):
             has_attention
             and has_mamba
             and getattr(layout, "is_block_outermost", False)
-            and self.vllm_config.kv_transfer_config is None
+            and (self.vllm_config.kv_transfer_config is None or shares_qwen4_pd_pool)
             and getattr(
                 model_runner,
                 "supports_page_strided_shared_kv_backing",

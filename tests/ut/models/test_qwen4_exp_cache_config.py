@@ -318,11 +318,12 @@ def _allocate_mrv2_kv_cache(
     *,
     use_main: bool = False,
     kernel_block_sizes: list[int] | None = None,
+    connector: str | None = None,
 ):
     """Allocate and materialize Qwen4Exp cache views through MRV2 only."""
     vllm_config = SimpleNamespace(
         additional_config={},
-        kv_transfer_config=None,
+        kv_transfer_config=SimpleNamespace(kv_connector=connector) if connector else None,
         cache_config=SimpleNamespace(cache_dtype="auto"),
         model_config=SimpleNamespace(
             hf_config=SimpleNamespace(),
@@ -378,7 +379,8 @@ def _allocate_mrv2_kv_cache(
 
 
 @pytest.mark.parametrize("runner_kind", ["v2", "v2_main"])
-def test_runner_materializes_packed_kv_and_contiguous_ssm_views(monkeypatch, runner_kind) -> None:
+@pytest.mark.parametrize("connector", [None, "MooncakeConnectorV2", "MooncakePullConnector"])
+def test_runner_materializes_packed_kv_and_contiguous_ssm_views(monkeypatch, runner_kind, connector) -> None:
     config = get_qwen4_exp_kv_cache_config(
         SimpleNamespace(
             cache_config=SimpleNamespace(
@@ -394,6 +396,7 @@ def test_runner_materializes_packed_kv_and_contiguous_ssm_views(monkeypatch, run
         config,
         monkeypatch,
         use_main=runner_kind == "v2_main",
+        connector=connector,
     )
     # Every physical byte is represented once by the planner, including the
     # single PLE and hidden banks outside the shared slot backing.
@@ -970,3 +973,32 @@ def test_whole_page_sharing_uses_one_tp4_page_for_qsa_or_complete_gdn():
     gdn_ssm[1].zero_()
     assert torch.count_nonzero(qsa[1].flatten()[: 798 * 1024 // 2]) == 0
     assert torch.count_nonzero(qsa[[0, 2]]) == 0
+
+
+@pytest.mark.parametrize("connector", ["MooncakeConnectorV2", "MooncakePullConnector", "OtherConnector"])
+def test_qwen4_pd_budget_matches_packed_allocation(monkeypatch, connector):
+    from vllm_ascend.worker.worker import NPUWorker
+
+    groups = _groups()
+    config = SimpleNamespace(
+        model_config=SimpleNamespace(hf_text_config=SimpleNamespace(model_type="qwen4_exp")),
+        cache_config=SimpleNamespace(
+            cache_dtype="auto",
+            get_resolved_kv_cache_layout=lambda: SimpleNamespace(
+                is_block_outermost=True, is_layer_compact=False, is_block_compact=False
+            ),
+        ),
+        kv_transfer_config=SimpleNamespace(kv_connector=connector),
+    )
+    worker = NPUWorker.__new__(NPUWorker)
+    worker.vllm_config = config
+    worker.model_config = config.model_config
+    worker.use_v2_model_runner = True
+    worker.model_runner = SimpleNamespace(supports_page_strided_shared_kv_backing=True)
+    worker.get_kv_cache_spec = lambda: {name: group.kv_cache_spec for group in groups for name in group.layer_names}
+    monkeypatch.setattr("vllm_ascend.worker.worker.get_kv_cache_groups", lambda *_: groups)
+    budget = worker._scale_kv_cache_memory_for_multi_group(10**9)
+    if connector == "OtherConnector":
+        assert budget < 10**9
+    else:
+        assert budget == 10**9
