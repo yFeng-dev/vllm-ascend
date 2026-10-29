@@ -163,6 +163,85 @@ Before starting the service:
     - `--compilation-config` enables `FULL_DECODE_ONLY` ACLGraph for decode.
     - `fuse_norm_quant=false` selects the validated norm and quantization path for this W8A8 deployment.
 
+### 5.2 Mooncake V2 Prefill/Decode Separation
+
+For the MRV2 QSA cache layout, use `MooncakeConnectorV2` on both sides. It
+preserves physical cache strides, transfers PLE state as a complete TP replica,
+and maps sharded GDN state per layer. This requires the replicated-state and
+single-head NHD fixes from [#19974](https://github.com/vllm-project/vllm-ascend/pull/19974)
+and [#19824](https://github.com/vllm-project/vllm-ascend/pull/19824), together with
+the Qwen model implementation. The legacy layerwise connector's global TP ratio
+restriction does not apply to Mooncake V2.
+
+The following configuration uses sixteen A3 devices: eight for Prefill and eight
+for Decode. Set `P_TP` and `D_TP` to `8,8`, `8,4`, or `4,8`; a TP4 side uses DP2
+with expert parallelism. Both sides must advertise the same topology. Retain the
+model's shared cache allocation and standardized memory accounting; do not
+restore the older page-strided allocation gates from earlier model revisions.
+
+Set the model path, reachable host address, and network interface in each shell:
+
+```bash
+export MODEL_PATH=/models/Qwen3.8-Flash-Next-w8a8
+export VLLM_HOST_IP="<host-ip>"
+export HCCL_SOCKET_IFNAME="<network-interface>"
+export GLOO_SOCKET_IFNAME=$HCCL_SOCKET_IFNAME
+export TP_SOCKET_IFNAME=$HCCL_SOCKET_IFNAME
+export VLLM_USE_V2_MODEL_RUNNER=1
+export HCCL_BUFFSIZE=512
+export OMP_NUM_THREADS=8
+export P_TP=8 D_TP=8
+```
+
+For Prefill, set:
+
+```bash
+export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export SIDE=prefill ROLE=kv_producer TP=$P_TP
+export PORT=18100 KV_PORT=25100 DP_PORT=29410
+```
+
+For Decode, use a separate shell and set:
+
+```bash
+export ASCEND_RT_VISIBLE_DEVICES=8,9,10,11,12,13,14,15
+export SIDE=decode ROLE=kv_consumer TP=$D_TP
+export PORT=18200 KV_PORT=25200 DP_PORT=29420
+```
+
+Run the same command in each shell after setting that side's variables:
+
+```bash
+vllm serve "$MODEL_PATH" \
+    --host "$VLLM_HOST_IP" --port "$PORT" \
+    --served-model-name qwen38-pd --trust-remote-code --quantization ascend \
+    --tensor-parallel-size "$TP" --data-parallel-size "$((8 / TP))" \
+    --data-parallel-rpc-port "$DP_PORT" --enable-expert-parallel \
+    --max-model-len 8192 --max-num-seqs 64 --max-num-batched-tokens 2048 \
+    --block-size 1536 --gpu-memory-utilization 0.85 \
+    --no-enable-prefix-caching --enforce-eager \
+    --limit-mm-per-prompt '{"image":0,"video":0}' \
+    --additional-config '{"enable_cpu_binding":false,"ascend_compilation_config":{"fuse_norm_quant":false}}' \
+    --speculative-config '{"method":"qwen3_5_mtp","num_speculative_tokens":3,"enforce_eager":true}' \
+    --kv-transfer-config "{\"kv_connector\":\"MooncakeConnectorV2\",\"kv_role\":\"$ROLE\",\"engine_id\":\"qwen38-$SIDE\",\"kv_port\":$KV_PORT,\"kv_connector_extra_config\":{\"prefill\":{\"tp_size\":$P_TP,\"dp_size\":$((8 / P_TP))},\"decode\":{\"tp_size\":$D_TP,\"dp_size\":$((8 / D_TP))}}}"
+```
+
+After both `/health` endpoints return HTTP 200, start the proxy from the
+vLLM-Ascend repository root:
+
+```bash
+python examples/disaggregated_prefill_v1/load_balance_proxy_server_example.py \
+    --host 127.0.0.1 --port 18000 \
+    --prefiller-hosts "$VLLM_HOST_IP" --prefiller-ports 18100 \
+    --decoder-hosts "$VLLM_HOST_IP" --decoder-ports 18200
+```
+
+Send requests to the proxy's `/v1/chat/completions` endpoint with
+`model="qwen38-pd"`. Validate long prompts exceeding one prefill chunk as well
+as concurrent short requests. Check actual KV transfer metadata and backend
+errors in addition to HTTP status and answer correctness. Recheck memory
+capacity before increasing context length or concurrency.
+
 ## 6 Functional Verification
 
 After the service is started, the model can be invoked by sending a prompt. The `chat/completions` API is supported. Use the `--served-model-name` you configured (`qwen3.8-flash-next` for `Qwen3.8-Flash-Next`).
