@@ -1,0 +1,6 @@
+pr: 5
+entries:
+  - category: bugfix
+    text: Fixed MooncakeConnectorV2 PD initialization when Prefill TP is smaller than Decode TP, while preserving the current Qwen MRV2 shared KV cache layout and legacy layerwise connector constraints.
+    model: Qwen3.8-Flash-Next
+    hardware: [A3]
