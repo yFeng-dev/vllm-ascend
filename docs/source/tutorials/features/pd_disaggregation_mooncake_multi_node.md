@@ -8,6 +8,34 @@ Take the DeepSeek-r1-w8a8 model as an example, use 4 Atlas 800T A3 servers to de
 
 ## Verify Multi-Node Communication Environment
 
+### DeepSeek V4.1 layerwise transfer
+
+Use `MooncakeLayerwiseConnector` on both P and D with matching model and cache
+layouts. Each physical layer transfers its own SWA, compressed KV, indexer and
+C2 compressor components using their individual cache groups. Page addresses
+use physical strides; copies contain only the component payload. DSpark context
+caches are published separately from draft query writes, for every draft layer.
+
+P processes the full prompt. D follows the vLLM scheduler's normal final-token
+recomputation after loading the caches; this connector does not truncate V4.1
+prompts. Ordinary cache blocks can transfer during chunked prefill. Circular
+compressor state is one persistent page per request and transfers only on the
+final chunk. Circular state requires PCP=1 and DCP=1.
+
+P/D TP sizes may differ when supported by the existing MLA rank mapping.
+Packed V4.1 components bypass conventional K/V staging. Weight W8A8 quantization
+is independent of transfer-time quantization. D registers its destination groups
+before consuming completion signals and waits for all groups and their expected
+senders. Layerwise transfer overlaps P computation with sending; it does not
+start D's attention one layer at a time.
+
+For initial validation, use PP=PCP=DCP=1, no microbatching, and
+`--no-enable-prefix-caching --no-swa-bounded-replay --enforce-eager` on both
+instances. Both endpoints must run the updated connector. Validate output
+consistency, chunk/window boundaries, concurrent page reuse and DSpark on the
+deployment before production use. Unit tests do not establish NPU correctness
+or throughput improvements.
+
 ### Physical Layer Requirements
 
 - The physical machines must be located on the same LAN, with network connectivity.

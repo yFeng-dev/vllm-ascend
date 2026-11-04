@@ -17,6 +17,7 @@ import torch.nn.functional as F
 from torch import nn
 from vllm.compilation.breakable_cudagraph import eager_break_during_capture
 from vllm.config import VllmConfig
+from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group, is_v1_kv_transfer_group
 from vllm.forward_context import get_forward_context
 from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
 from vllm.utils.torch_utils import direct_register_custom_op
@@ -57,6 +58,40 @@ from vllm_ascend.worker.device_metadata import (
 V41_METADATA_BUFFER_SIZE = 1024
 
 
+def _get_dsv41_layerwise_connector():
+    if not has_kv_transfer_group() or not is_v1_kv_transfer_group():
+        return None
+    connector = get_kv_transfer_group()
+    if not getattr(connector, "supports_dsv41_layerwise", False) or not connector.has_connector_metadata():
+        return None
+    if get_forward_context().attn_metadata is None:
+        return None
+    return connector
+
+
+def wait_for_dsv41_layerwise_kv(layer_name: str) -> None:
+    """Protect cache storage from reuse while an outgoing transfer reads it."""
+    connector = _get_dsv41_layerwise_connector()
+    if connector is not None:
+        connector.wait_for_layer_load(layer_name)
+
+
+def save_dsv41_layerwise_kv(layer_name: str) -> None:
+    """Publish registered V4.1 cache planes after their compute-stream writes.
+
+    V4.1 has several independently paged cache planes per physical layer.
+    The layerwise connector transfers their registered addresses, rather than
+    interpreting them as a conventional K/V pair. DSpark calls this at the
+    context-cache scatter, before its draft queries can overwrite that cache.
+    """
+    connector = _get_dsv41_layerwise_connector()
+    if connector is None:
+        return
+    attn_metadata = get_forward_context().attn_metadata
+    connector.on_kv_cache_written(layer_name)
+    connector.save_kv_layer(layer_name, [], attn_metadata)
+
+
 @eager_break_during_capture
 def dsa_v41_forward(
     hidden_states: torch.Tensor,
@@ -66,7 +101,12 @@ def dsa_v41_forward(
     """Execute V4.1 attention behind an explicit graph side-effect boundary."""
     forward_context = get_forward_context()
     attn = forward_context.no_compile_layers[layer_name]
+    wait_for_dsv41_layerwise_kv(layer_name)
     attn.v41_impl.forward(attn, None, hidden_states, output)
+    # Draft context KV is published by precompute_and_store_context_kv;
+    # draft attention writes query KV and must not advance the send counter.
+    if not layer_name.startswith("mtp."):
+        save_dsv41_layerwise_kv(layer_name)
 
 
 def dsa_v41_forward_fake(

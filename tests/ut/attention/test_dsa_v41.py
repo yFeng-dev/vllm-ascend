@@ -289,3 +289,39 @@ def test_a5_indexer_uses_prequantized_query(monkeypatch):
     )
     assert result[0] is quantized
     assert result[1].shape == (2, 1, 2, 2)
+
+
+@pytest.mark.parametrize("draft", [False, True])
+def test_layerwise_hooks_publish_target_once_and_protect_draft_reuse(monkeypatch, draft):
+    name = "mtp.0.self_attn.v41_attn" if draft else "language_model.model.layers.0.self_attn.v41_attn"
+    calls = []
+    attn = SimpleNamespace(v41_impl=SimpleNamespace(forward=lambda *a: calls.append("forward")))
+    monkeypatch.setattr(dsa_v41, "get_forward_context", lambda: SimpleNamespace(no_compile_layers={name: attn}))
+    monkeypatch.setattr(dsa_v41, "wait_for_dsv41_layerwise_kv", lambda n: calls.append(("wait", n)))
+    monkeypatch.setattr(dsa_v41, "save_dsv41_layerwise_kv", lambda n: calls.append(("save", n)))
+    dsa_v41.dsa_v41_forward(torch.empty(0), torch.empty(0), name)
+    assert calls == [("wait", name), "forward"] + ([] if draft else [("save", name)])
+
+
+@pytest.mark.parametrize(
+    "metadata,supported,bound", [(None, True, True), ({}, False, True), ({}, True, False), ({}, True, True)]
+)
+def test_layerwise_publish_guards_profile_and_other_connectors(monkeypatch, metadata, supported, bound):
+    from unittest.mock import MagicMock, call
+
+    connector = MagicMock()
+    connector.supports_dsv41_layerwise = supported
+    connector.has_connector_metadata.return_value = bound
+    monkeypatch.setattr(dsa_v41, "has_kv_transfer_group", lambda: True)
+    monkeypatch.setattr(dsa_v41, "is_v1_kv_transfer_group", lambda: True)
+    monkeypatch.setattr(dsa_v41, "get_kv_transfer_group", lambda: connector)
+    monkeypatch.setattr(dsa_v41, "get_forward_context", lambda: SimpleNamespace(attn_metadata=metadata))
+    dsa_v41.save_dsv41_layerwise_kv("layer")
+    if metadata is not None and supported and bound:
+        assert connector.method_calls[-2:] == [
+            call.on_kv_cache_written("layer"),
+            call.save_kv_layer("layer", [], metadata),
+        ]
+    else:
+        connector.on_kv_cache_written.assert_not_called()
+        connector.save_kv_layer.assert_not_called()
