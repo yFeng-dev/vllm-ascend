@@ -134,6 +134,11 @@ def test_v41_draft_routes_to_v41(cp):
     with (
         patch.object(DeepseekV41SWAAttention, "__init__", initialize_base),
         patch("vllm_ascend.attention.context_parallel.dsa_v41_cp.enable_dsa_cp", return_value=cp),
+        patch("vllm_ascend.attention.context_parallel.dsa_v41_cp.is_pcp_enabled", return_value=False),
+        patch(
+            "vllm_ascend.attention.dsa_v41.get_ascend_config",
+            return_value=SimpleNamespace(multistream_dsv4_dsa_overlap=False),
+        ),
         patch.object(
             deepseek_v41_dspark_module.DeviceOperator,
             "get_dsv41_packed_cache_ops",
@@ -290,3 +295,42 @@ def test_draft_constructor_uses_upstream_head_contracts(monkeypatch, draft_vocab
         impl.reserve_oproj_buffers.assert_called_once_with(
             torch.device(module.current_platform.device_type), torch.float16
         )
+
+
+@pytest.mark.parametrize("profile", [False, True])
+def test_layerwise_context_cache_publication_order(monkeypatch, profile):
+    calls = []
+    attns = [
+        SimpleNamespace(
+            dsa_attn=SimpleNamespace(swa_cache_layer=SimpleNamespace(prefix=f"mtp.{i}.self_attn.swa_cache"))
+        )
+        for i in range(3)
+    ]
+    states, positions = torch.ones(2, 4), torch.arange(2)
+    mappings = [torch.tensor([0, 1]), None, torch.tensor([2, 3])]
+
+    def project(hidden, pos, attn):
+        assert hidden is states and pos is positions
+        calls.append(("project", attns.index(attn)))
+        return hidden
+
+    def store(values, slots, attn):
+        index = attns.index(attn)
+        assert values is states and slots is mappings[index]
+        calls.append(("store", index))
+
+    module = deepseek_v41_dspark_module
+    monkeypatch.setattr(module, "wait_for_dsv41_layerwise_kv", lambda name: calls.append(("wait", name)))
+    monkeypatch.setattr(module, "save_dsv41_layerwise_kv", lambda name: calls.append(("save", name)))
+    model = SimpleNamespace(
+        layers={str(i + 40): SimpleNamespace(self_attn=attn) for i, attn in enumerate(attns)},
+        _project_shared_kv=project,
+        _store_standard_swa_kv=store,
+    )
+    DeepseekV41DSparkModel.precompute_and_store_context_kv(model, states, positions, None if profile else mappings)
+    expected = []
+    if not profile:
+        for i in (0, 2):
+            name = f"mtp.{i}.self_attn.swa_cache"
+            expected.extend([("wait", name), ("project", i), ("store", i), ("save", name)])
+    assert calls == expected

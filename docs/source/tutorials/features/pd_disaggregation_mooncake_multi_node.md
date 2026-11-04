@@ -8,36 +8,33 @@ Take the DeepSeek-r1-w8a8 model as an example, use 4 Atlas 800T A3 servers to de
 
 ## Verify Multi-Node Communication Environment
 
-### DeepSeek V4.1 layerwise configuration
+### DeepSeek V4.1 layerwise transfer
 
-DeepSeek V4.1 can use `MooncakeLayerwiseConnector` with the same TP size,
-logical block sizes, cache layout, and connector version on P and D. The initial
-implementation requires PP=PCP=DCP=1, no microbatching, and no speculative decoding
-(MTP/DSpark). A checkpoint containing MTP weights can be used with speculative
-decoding disabled. Model W8A8 quantization is independent of the connector's
-transfer quantization; head resharding and transfer-time KV/C8 quantization are
-unsupported.
+Use `MooncakeLayerwiseConnector` on both P and D with matching model and cache
+layouts. Each physical layer transfers its own SWA, compressed KV, indexer and
+C2 compressor components using their individual cache groups. Page addresses
+use physical strides; copies contain only the component payload. DSpark context
+caches are published separately from draft query writes, for every draft layer.
 
-On both instances, disable prefix caching and SWA bounded replay. Use
-`--no-enable-prefix-caching --no-swa-bounded-replay --enforce-eager` for the initial
-validation. `FULL_DECODE_ONLY` is also accepted; prefill must run outside a full
-graph so that the per-layer publication hooks execute for every request.
-Keep the existing producer/consumer roles and proxy routing described below,
-and select `MooncakeLayerwiseConnector` in `--kv-transfer-config` on both peers.
+P processes the full prompt. D follows the vLLM scheduler's normal final-token
+recomputation after loading the caches; this connector does not truncate V4.1
+prompts. Ordinary cache blocks can transfer during chunked prefill. Circular
+compressor state is one persistent page per request and transfers only on the
+final chunk. Circular state requires PCP=1 and DCP=1.
 
-Each backbone layer publishes its SWA cache and any long KV, index K/scale, or
-C2 compressor state that it owns after cache writes complete. Transfers use each
-component's cache group and physical page stride, preserving other components
-that share the same backing allocation. TopK work buffers are recomputed on D.
-For prompts longer than one token, P computes the first N-1 tokens and D computes
-the final prompt token against the transferred state before sampling.
+P/D TP sizes may differ when supported by the existing MLA rank mapping.
+Packed V4.1 components bypass conventional K/V staging. Weight W8A8 quantization
+is independent of transfer-time quantization. D registers its destination groups
+before consuming completion signals and waits for all groups and their expected
+senders. Layerwise transfer overlaps P computation with sending; it does not
+start D's attention one layer at a time.
 
-Chunked prefill is accepted, but only its final chunk publishes a complete
-snapshot, layer by layer. The P worker drains outstanding transfers before the
-request's pages can be reused. D waits for request completion before starting;
-this implementation overlaps P computation and transfer, not P and D layer
-execution. NPU end-to-end correctness and performance must be validated for the
-deployment before production use.
+For initial validation, use PP=PCP=DCP=1, no microbatching, and
+`--no-enable-prefix-caching --no-swa-bounded-replay --enforce-eager` on both
+instances. Both endpoints must run the updated connector. Validate output
+consistency, chunk/window boundaries, concurrent page reuse and DSpark on the
+deployment before production use. Unit tests do not establish NPU correctness
+or throughput improvements.
 
 ### Physical Layer Requirements
 
