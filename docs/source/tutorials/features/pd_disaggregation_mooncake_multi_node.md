@@ -374,7 +374,8 @@ We can run the following scripts to launch a server on the prefiller/decoder nod
 
 ### MooncakeConnectorV2 KV Leases
 
-`MooncakeConnectorV2` retains producer KV blocks with an initial 30-second
+When explicitly enabled on P and D, `MooncakeConnectorV2` retains producer KV
+blocks with an initial 30-second
 lease. While a request is waiting on D or its KV transfer is in progress, a
 dedicated connector thread sends batched heartbeats every 5 seconds. Each
 heartbeat extends the deadline to the later of the existing deadline and
@@ -401,10 +402,17 @@ to each side's existing `--kv-transfer-config`:
 }
 ```
 
-`enable_heartbeat` defaults to `true`; set it to `false` on D to disable
-renewal. The initial lease still applies when renewal is disabled. V2 uses
-`kv_lease_duration` instead of `VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT`; V1 retains
-its existing timeout behavior. Upgrade P before enabling heartbeats on D.
+`enable_heartbeat` is a boolean and defaults to `false`. When omitted or set to
+`false`, V2 keeps its original completion and timeout flow: P uses
+`VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT` (default 480 seconds), D sends no heartbeats,
+and `kv_lease_duration` is ignored. P does not renew requests from heartbeat
+messages while disabled. Normal transfer completion notifications remain active.
+
+Set `enable_heartbeat=true` on **both P and D** to use renewable leases; only then
+does `kv_lease_duration` replace the original timeout. Configure the same duration
+on both sides. Enabling only D does not protect requests on a disabled P; enabling
+only P applies its initial lease without renewal. Upgrade and enable P before D.
+MooncakeConnectorV1 keeps its existing timeout behavior.
 
 An aborted request with an in-flight read keeps its lease until worker
 completion is reported. If the entire D process stops running or the control
@@ -471,7 +479,7 @@ settings. Restart the serving processes after changing P/D QoS.
 
 ### kv_port Configuration Guide
 
-On Ascend NPU, Mooncake uses AscendDirectTransport for RDMA data transfer, which randomly allocates ports within range `[20000, 20000 + npu_per_node × 1000)`. If `kv_port` overlaps with this range, intermittent port conflicts may occur. To avoid this, configure `kv_port` according to the table below:
+On Ascend NPU, Mooncake uses AscendDirectTransport for RDMA data transfer, which randomly allocates ports within range `[20000, 20000 + npu_per_node 脳 1000)`. If `kv_port` overlaps with this range, intermittent port conflicts may occur. To avoid this, configure `kv_port` according to the table below:
 
 | NPUs per Node | Reserved Port Range | Recommended kv_port |
 |---------------|---------------------|---------------------|

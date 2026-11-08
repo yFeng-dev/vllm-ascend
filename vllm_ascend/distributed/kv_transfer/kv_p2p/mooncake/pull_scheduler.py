@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import msgspec
 import zmq
+from vllm import envs
 from vllm.distributed.kv_transfer.kv_connector.utils import BlockIds
 from vllm.distributed.kv_transfer.kv_connector.v1.base import (
     KVConnectorHandshakeMetadata,
@@ -72,6 +73,7 @@ class MooncakeSchedulerSendingThread(threading.Thread):
         use_kv_pp: bool,
         ready_event: threading.Event,
         kv_lease_duration: int = DEFAULT_KV_LEASE_DURATION,
+        enable_heartbeat: bool = False,
     ) -> None:
         super().__init__(daemon=True, name="MooncakeSchedulerSendingThread")
         encoder = msgspec.msgpack.Encoder()
@@ -116,6 +118,7 @@ class MooncakeSchedulerSendingThread(threading.Thread):
         self.stop_event = threading.Event()
         self.delayed_free_requests: OrderedDict[str, float] = OrderedDict()
         self.renewed_requests: OrderedDict[str, float] = OrderedDict()
+        self.enable_heartbeat = enable_heartbeat
         self.kv_lease_duration = kv_lease_duration
         self.lease_extension = kv_lease_duration * 2 // 3
         self.finished_requests: queue.SimpleQueue[str] = queue.SimpleQueue()
@@ -318,12 +321,18 @@ class MooncakeSchedulerSendingThread(threading.Thread):
             )
         return merged
 
-    def add_delayed_request(self, request_id: str) -> None:
+    def add_delayed_request(self, request_id: str, delay_start_time: float | None = None) -> None:
         with self.state_lock:
+            if not self.enable_heartbeat:
+                assert delay_start_time is not None
+                self.delayed_free_requests[request_id] = delay_start_time
+                return
             if request_id not in self.delayed_free_requests and request_id not in self.renewed_requests:
                 self.delayed_free_requests[request_id] = time.monotonic() + self.kv_lease_duration
 
     def _handle_heartbeat(self, request_ids: Sequence[str]) -> None:
+        if not self.enable_heartbeat:
+            return
         with self.state_lock:
             now = time.monotonic()
             for request_id in request_ids:
@@ -394,7 +403,7 @@ class MooncakeSchedulerSendingThread(threading.Thread):
                 elif msg[0] == DONE_RECVING_MSG and len(msg) == 2:
                     self._handle_finished_request(str(msg[1]))
                     sock.send_multipart((identity, b"", ACK_MSG))
-                elif msg[0] == HEARTBEAT_MSG and len(msg) == 2:
+                elif self.enable_heartbeat and msg[0] == HEARTBEAT_MSG and len(msg) == 2:
                     if not isinstance(msg[1], (list, tuple)) or not all(isinstance(req_id, str) for req_id in msg[1]):
                         raise ValueError("Invalid Mooncake heartbeat request IDs")
                     self._handle_heartbeat(msg[1])
@@ -423,6 +432,20 @@ class MooncakeSchedulerSendingThread(threading.Thread):
         self.finished_requests.put(request_id)
 
     def _retrieve_expired_requests_locked(self) -> None:
+        if not self.enable_heartbeat:
+            current_time = time.time()
+            while self.delayed_free_requests:
+                request_id = next(iter(self.delayed_free_requests))
+                delay_start_time = self.delayed_free_requests[request_id]
+                if current_time - delay_start_time <= envs.VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT:
+                    break
+                self._mark_finished_locked(request_id)
+                logger.error(
+                    "Force freed expired Mooncake request %s after %s seconds",
+                    request_id,
+                    envs.VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT,
+                )
+            return
         now = time.monotonic()
         # Each queue has one fixed duration. Renewals only move to the tail
         # when the deadline increases, keeping both queues expiry-ordered.
@@ -564,18 +587,23 @@ class MooncakePullConnectorScheduler(MooncakeBaseConnectorScheduler):
         self._sending_thread: MooncakeSchedulerSendingThread | None = None
         self._recving_thread: MooncakeSchedulerRecvingThread | None = None
         self._heartbeat_thread: MooncakeHeartbeatThread | None = None
-        self._kv_lease_duration = self.kv_transfer_config.get_from_extra_config(
-            "kv_lease_duration", DEFAULT_KV_LEASE_DURATION
-        )
-        if type(self._kv_lease_duration) is not int or self._kv_lease_duration < 6:
-            raise ValueError("Mooncake kv_lease_duration must be an integer of at least 6 seconds")
+        self._enable_heartbeat = self.kv_transfer_config.get_from_extra_config("enable_heartbeat", False)
+        if type(self._enable_heartbeat) is not bool:
+            raise ValueError("Mooncake enable_heartbeat must be a boolean")
+        self._kv_lease_duration = DEFAULT_KV_LEASE_DURATION
+        if self._enable_heartbeat:
+            self._kv_lease_duration = self.kv_transfer_config.get_from_extra_config(
+                "kv_lease_duration", DEFAULT_KV_LEASE_DURATION
+            )
+            if type(self._kv_lease_duration) is not int or self._kv_lease_duration < 6:
+                raise ValueError("Mooncake kv_lease_duration must be an integer of at least 6 seconds")
 
         if self.kv_transfer_config.is_kv_consumer:
             recving_ready_event = threading.Event()
             self._recving_thread = MooncakeSchedulerRecvingThread(recving_ready_event)
             self._recving_thread.start()
             recving_ready_event.wait()
-            if self.kv_transfer_config.get_from_extra_config("enable_heartbeat", True):
+            if self._enable_heartbeat:
                 self._heartbeat_thread = MooncakeHeartbeatThread(self._kv_lease_duration // 6)
                 self._heartbeat_thread.start()
 
@@ -626,6 +654,7 @@ class MooncakePullConnectorScheduler(MooncakeBaseConnectorScheduler):
             self.ascend_config.kvpp_config.size > 1,
             ready_event,
             kv_lease_duration=self._kv_lease_duration,
+            enable_heartbeat=self._enable_heartbeat,
         )
         self._sending_thread.start()
         if not ready_event.wait(timeout=10):
@@ -766,11 +795,14 @@ class MooncakePullConnectorScheduler(MooncakeBaseConnectorScheduler):
                 num_computed_blocks,
                 request.request_id,
             )
-            delay_start_time = time.monotonic()
+            delay_start_time = time.monotonic() if self._enable_heartbeat else time.time()
             self._reqs_need_send[request.request_id] = delay_start_time
             if self._sending_thread is None:
                 raise RuntimeError("Mooncake scheduler metadata has not been initialized")
-            self._sending_thread.add_delayed_request(request.request_id)
+            if self._enable_heartbeat:
+                self._sending_thread.add_delayed_request(request.request_id)
+            else:
+                self._sending_thread.add_delayed_request(request.request_id, delay_start_time)
 
         return delay_free_blocks, {
             "do_remote_prefill": True,
