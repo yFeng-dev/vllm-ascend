@@ -66,6 +66,7 @@ def make_sending_thread(
         use_kv_pp=use_kv_pp,
         ready_event=threading.Event(),
         enable_heartbeat=enable_heartbeat,
+        kv_lease_duration=30,  # Explicit short lease for boundary tests.
     )
 
 
@@ -1336,10 +1337,11 @@ def test_invalid_heartbeat_switch_fails_before_starting_threads(monkeypatch, val
         MooncakePullConnectorScheduler(MagicMock(), "engine", MagicMock())
 
 
-def test_enabled_consumer_starts_heartbeat_with_configured_interval(monkeypatch) -> None:
+@pytest.mark.parametrize("extra, duration, interval", [({}, 120, 20), ({"kv_lease_duration": 60}, 60, 10)])
+def test_enabled_consumer_starts_heartbeat_with_configured_interval(monkeypatch, extra, duration, interval) -> None:
     config = SimpleNamespace(
         is_kv_consumer=True,
-        get_from_extra_config={"enable_heartbeat": True, "kv_lease_duration": 60}.get,
+        get_from_extra_config={"enable_heartbeat": True, **extra}.get,
     )
     monkeypatch.setattr(
         MooncakeBaseConnectorScheduler, "__init__", lambda self, *args: setattr(self, "kv_transfer_config", config)
@@ -1354,7 +1356,38 @@ def test_enabled_consumer_starts_heartbeat_with_configured_interval(monkeypatch)
     heartbeat = MagicMock()
     monkeypatch.setattr(pull_scheduler, "MooncakeHeartbeatThread", heartbeat)
     scheduler = MooncakePullConnectorScheduler(MagicMock(), "engine", MagicMock())
-    heartbeat.assert_called_once_with(10)
+    assert scheduler._kv_lease_duration == duration
+    heartbeat.assert_called_once_with(interval)
     heartbeat.return_value.start.assert_called_once()
     scheduler.shutdown()
     heartbeat.return_value.shutdown.assert_called_once()
+
+
+def test_default_producer_lease_lasts_120_seconds_and_renews_for_80(monkeypatch) -> None:
+    clock = MagicMock(return_value=0.0)
+    monkeypatch.setattr(pull_scheduler.time, "monotonic", clock)
+    thread = MooncakeSchedulerSendingThread(
+        host="127.0.0.1",
+        port=6000,
+        engine_id="engine-p",
+        metadata={0: make_transfer_metadata()},
+        tp_size=1,
+        pp_size=1,
+        pcp_size=1,
+        dcp_size=1,
+        use_kv_pp=False,
+        ready_event=threading.Event(),
+        enable_heartbeat=True,
+    )
+    thread.add_delayed_request("initial")
+    thread.add_delayed_request("renewed")
+    clock.return_value = 60.0
+    thread._handle_heartbeat(("renewed",))
+    clock.return_value = 119.0
+    assert thread.get_and_clear_finished_requests() == set()
+    clock.return_value = 120.0
+    assert thread.get_and_clear_finished_requests() == {"initial"}
+    clock.return_value = 139.0
+    assert thread.get_and_clear_finished_requests() == set()
+    clock.return_value = 140.0
+    assert thread.get_and_clear_finished_requests() == {"renewed"}

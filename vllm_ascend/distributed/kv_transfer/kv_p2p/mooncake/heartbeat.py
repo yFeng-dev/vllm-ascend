@@ -14,7 +14,7 @@ from vllm.logger import logger
 from vllm.utils.network_utils import make_zmq_path, make_zmq_socket
 
 HEARTBEAT_MSG = b"heartbeat_msg"
-DEFAULT_KV_LEASE_DURATION = 30
+DEFAULT_KV_LEASE_DURATION = 120
 MAX_HEARTBEAT_REQUESTS = 512
 HEARTBEAT_ACK_TIMEOUT = 1.0
 

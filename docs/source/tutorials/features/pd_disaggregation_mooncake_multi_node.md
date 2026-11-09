@@ -375,11 +375,11 @@ We can run the following scripts to launch a server on the prefiller/decoder nod
 ### MooncakeConnectorV2 KV Leases
 
 When explicitly enabled on P and D, `MooncakeConnectorV2` retains producer KV
-blocks with an initial 30-second
-lease. While a request is waiting on D or its KV transfer is in progress, a
-dedicated connector thread sends batched heartbeats every 5 seconds. Each
+blocks with an initial 120-second lease. While a request is waiting on D or its
+KV transfer is in progress, a
+dedicated connector thread sends batched heartbeats every 20 seconds. Each
 heartbeat extends the deadline to the later of the existing deadline and
-20 seconds after receipt on P. Heartbeats do not depend on scheduler steps or
+80 seconds after receipt on P. Heartbeats do not depend on scheduler steps or
 model forward completion. P releases the blocks after aggregated transfer
 completion, or when the lease expires without renewal.
 
@@ -396,7 +396,7 @@ to each side's existing `--kv-transfer-config`:
 ```json
 {
   "kv_connector_extra_config": {
-    "kv_lease_duration": 30,
+    "kv_lease_duration": 120,
     "enable_heartbeat": true
   }
 }
