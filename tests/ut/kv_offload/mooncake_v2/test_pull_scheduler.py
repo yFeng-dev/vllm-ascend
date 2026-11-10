@@ -52,7 +52,6 @@ def make_sending_thread(
     pcp_size: int = 1,
     dcp_size: int = 1,
     use_kv_pp: bool = False,
-    enable_heartbeat: bool = True,
 ) -> MooncakeSchedulerSendingThread:
     return MooncakeSchedulerSendingThread(
         host="127.0.0.1",
@@ -65,7 +64,6 @@ def make_sending_thread(
         dcp_size=dcp_size,
         use_kv_pp=use_kv_pp,
         ready_event=threading.Event(),
-        enable_heartbeat=enable_heartbeat,
         kv_lease_duration=30,  # Explicit short lease for boundary tests.
     )
 
@@ -90,7 +88,6 @@ def make_pull_scheduler() -> MooncakePullConnectorScheduler:
     scheduler._sending_thread = None
     scheduler._recving_thread = None
     scheduler._heartbeat_thread = None
-    scheduler._enable_heartbeat = True
     scheduler._kv_lease_duration = 30
     return scheduler
 
@@ -1063,35 +1060,12 @@ def test_heartbeat_thread_renews_without_scheduler_steps_and_isolates_dead_peer(
 
 @pytest.mark.parametrize("duration", [0, 5, -1, 6.0, True, "30"])
 def test_invalid_lease_configuration_fails_before_starting_threads(monkeypatch, duration) -> None:
-    config = SimpleNamespace(get_from_extra_config=lambda key, default: True if key == "enable_heartbeat" else duration)
+    config = SimpleNamespace(get_from_extra_config=lambda key, default: duration)
     monkeypatch.setattr(
         MooncakeBaseConnectorScheduler, "__init__", lambda self, *args: setattr(self, "kv_transfer_config", config)
     )
     with pytest.raises(ValueError, match="kv_lease_duration"):
         MooncakePullConnectorScheduler(MagicMock(), "engine", MagicMock())
-
-
-@pytest.mark.parametrize("extra", [{}, {"enable_heartbeat": False}, {"kv_lease_duration": "ignored"}])
-def test_heartbeat_can_be_disabled_without_disabling_completion_notifications(monkeypatch, extra) -> None:
-    config = SimpleNamespace(
-        is_kv_consumer=True,
-        get_from_extra_config=extra.get,
-    )
-    monkeypatch.setattr(
-        MooncakeBaseConnectorScheduler, "__init__", lambda self, *args: setattr(self, "kv_transfer_config", config)
-    )
-    receiver = MagicMock()
-
-    def create_receiver(ready):
-        ready.set()
-        return receiver
-
-    monkeypatch.setattr(pull_scheduler, "MooncakeSchedulerRecvingThread", create_receiver)
-    scheduler = MooncakePullConnectorScheduler(MagicMock(), "engine", MagicMock())
-    assert scheduler._heartbeat_thread is None
-    assert scheduler._enable_heartbeat is False
-    receiver.start.assert_called_once()
-    scheduler.shutdown()
 
 
 def test_heartbeat_batches_large_groups_and_reconnects_after_bad_ack(monkeypatch) -> None:
@@ -1256,51 +1230,11 @@ def test_heartbeat_connection_failure_is_isolated_and_closes_partial_socket(monk
         assert not server.is_alive()
 
 
-@pytest.mark.parametrize("timeout", [7, 480])
-def test_disabled_heartbeat_preserves_legacy_timeout_and_done(monkeypatch, timeout) -> None:
-    clock = MagicMock(return_value=100.0)
-    monkeypatch.setattr(pull_scheduler.time, "time", clock)
-    monkeypatch.setattr(pull_scheduler.envs, "VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT", timeout)
-    thread = make_sending_thread(enable_heartbeat=False)
-    thread.add_delayed_request("expires", 100.0)
-    thread.add_delayed_request("done", 101.0)
-    thread._handle_heartbeat(("expires", "done"))
-    assert dict(thread.delayed_free_requests) == {"expires": 100.0, "done": 101.0}
-    assert not thread.renewed_requests
-    clock.return_value = 100.0 + timeout
-    assert thread.get_and_clear_finished_requests() == set()  # legacy strict > boundary
-    clock.return_value += 0.01
-    assert thread.get_and_clear_finished_requests() == {"expires"}
-    thread._handle_finished_request("done")
-    thread._handle_finished_request("done")
-    assert thread.get_and_clear_finished_requests() == {"done"}
-    assert thread.get_and_clear_finished_requests() == set()
-
-
-def test_disabled_producer_ignores_heartbeat_control_messages() -> None:
-    thread = make_sending_thread(enable_heartbeat=False)
-    thread.add_delayed_request("request", 100.0)
-    sock = MagicMock()
-    sock.recv_multipart.side_effect = [
-        [b"decoder", b"", msgspec.msgpack.encode((HEARTBEAT_MSG, ("request",)))],
-        [b"decoder", b"", msgspec.msgpack.encode((DONE_RECVING_MSG, "request"))],
-        KeyboardInterrupt(),
-    ]
-    with pytest.raises(KeyboardInterrupt):
-        thread._run_busy_loop(sock)
-    # Only DONE is acknowledged, matching the original control protocol.
-    sock.send_multipart.assert_called_once_with((b"decoder", b"", ACK_MSG))
-    assert not thread.renewed_requests
-    assert thread.get_and_clear_finished_requests() == {"request"}
-
-
-@pytest.mark.parametrize("enabled", [False, True])
-def test_request_finished_registers_correct_clock_for_selected_mode(monkeypatch, enabled) -> None:
+def test_request_finished_registers_monotonic_lease(monkeypatch) -> None:
     monkeypatch.setattr(pull_scheduler.time, "time", lambda: 1000.0)
     monkeypatch.setattr(pull_scheduler.time, "monotonic", lambda: 10.0)
     scheduler = make_pull_scheduler()
-    scheduler._enable_heartbeat = enabled
-    scheduler._sending_thread = make_sending_thread(enable_heartbeat=enabled)
+    scheduler._sending_thread = make_sending_thread()
     request = make_request(
         request_id="request-p",
         status=RequestStatus.FINISHED_LENGTH_CAPPED,
@@ -1309,39 +1243,26 @@ def test_request_finished_registers_correct_clock_for_selected_mode(monkeypatch,
     )
     delay_free, params = scheduler.request_finished(request, ([10, 11, 12],))
     assert delay_free and params is not None
-    assert scheduler._reqs_need_send["request-p"] == (10.0 if enabled else 1000.0)
-    assert scheduler._sending_thread.delayed_free_requests["request-p"] == (40.0 if enabled else 1000.0)
+    assert scheduler._reqs_need_send["request-p"] == 10.0
+    assert scheduler._sending_thread.delayed_free_requests["request-p"] == 40.0
 
 
-@pytest.mark.parametrize("enabled", [False, True])
-def test_producer_passes_heartbeat_switch_to_control_thread(monkeypatch, enabled) -> None:
+def test_producer_passes_lease_duration_to_control_thread(monkeypatch) -> None:
     scheduler = make_pull_scheduler()
-    scheduler._enable_heartbeat = enabled
     scheduler.kv_transfer_config = SimpleNamespace(is_kv_producer=True)
     scheduler.tp_size = scheduler.pp_size = 1
     factory = MagicMock()
     factory.return_value.start.side_effect = lambda: factory.call_args.args[9].set()
     monkeypatch.setattr(pull_scheduler, "MooncakeSchedulerSendingThread", factory)
     scheduler.set_xfer_handshake_metadata_from_workers({0: make_transfer_metadata()})
-    assert factory.call_args.kwargs["enable_heartbeat"] is enabled
     assert factory.call_args.kwargs["kv_lease_duration"] == 30
 
 
-@pytest.mark.parametrize("value", ["false", "true", 0, 1, None])
-def test_invalid_heartbeat_switch_fails_before_starting_threads(monkeypatch, value) -> None:
-    config = SimpleNamespace(get_from_extra_config={"enable_heartbeat": value}.get)
-    monkeypatch.setattr(
-        MooncakeBaseConnectorScheduler, "__init__", lambda self, *args: setattr(self, "kv_transfer_config", config)
-    )
-    with pytest.raises(ValueError, match="enable_heartbeat must be a boolean"):
-        MooncakePullConnectorScheduler(MagicMock(), "engine", MagicMock())
-
-
 @pytest.mark.parametrize("extra, duration, interval", [({}, 120, 20), ({"kv_lease_duration": 60}, 60, 10)])
-def test_enabled_consumer_starts_heartbeat_with_configured_interval(monkeypatch, extra, duration, interval) -> None:
+def test_consumer_always_starts_heartbeat_with_configured_interval(monkeypatch, extra, duration, interval) -> None:
     config = SimpleNamespace(
         is_kv_consumer=True,
-        get_from_extra_config={"enable_heartbeat": True, **extra}.get,
+        get_from_extra_config=extra.get,
     )
     monkeypatch.setattr(
         MooncakeBaseConnectorScheduler, "__init__", lambda self, *args: setattr(self, "kv_transfer_config", config)
@@ -1377,7 +1298,6 @@ def test_default_producer_lease_lasts_120_seconds_and_renews_for_80(monkeypatch)
         dcp_size=1,
         use_kv_pp=False,
         ready_event=threading.Event(),
-        enable_heartbeat=True,
     )
     thread.add_delayed_request("initial")
     thread.add_delayed_request("renewed")

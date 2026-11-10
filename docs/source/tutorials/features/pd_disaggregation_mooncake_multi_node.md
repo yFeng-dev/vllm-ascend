@@ -374,7 +374,7 @@ We can run the following scripts to launch a server on the prefiller/decoder nod
 
 ### MooncakeConnectorV2 KV Leases
 
-When explicitly enabled on P and D, `MooncakeConnectorV2` retains producer KV
+`MooncakeConnectorV2` retains producer KV
 blocks with an initial 120-second lease. While a request is waiting on D or its
 KV transfer is in progress, a
 dedicated connector thread sends batched heartbeats every 20 seconds. Each
@@ -396,22 +396,15 @@ to each side's existing `--kv-transfer-config`:
 ```json
 {
   "kv_connector_extra_config": {
-    "kv_lease_duration": 120,
-    "enable_heartbeat": true
+    "kv_lease_duration": 120
   }
 }
 ```
 
-`enable_heartbeat` is a boolean and defaults to `false`. When omitted or set to
-`false`, V2 keeps its original completion and timeout flow: P uses
-`VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT` (default 480 seconds), D sends no heartbeats,
-and `kv_lease_duration` is ignored. P does not renew requests from heartbeat
-messages while disabled. Normal transfer completion notifications remain active.
-
-Set `enable_heartbeat=true` on **both P and D** to use renewable leases; only then
-does `kv_lease_duration` replace the original timeout. Configure the same duration
-on both sides. Enabling only D does not protect requests on a disabled P; enabling
-only P applies its initial lease without renewal. Upgrade and enable P before D.
+Heartbeats are always enabled for `MooncakeConnectorV2`. `kv_lease_duration`
+(default 120 seconds) replaces `VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT` for V2;
+there is no heartbeat switch or fallback to the former 480-second timeout.
+Configure the same duration on P and D, and upgrade P before D.
 MooncakeConnectorV1 keeps its existing timeout behavior.
 
 An aborted request with an in-flight read keeps its lease until worker

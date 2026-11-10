@@ -2,14 +2,14 @@ pr: 6
 entries:
   - category: feature
     text: >-
-      MooncakeConnectorV2 optionally renews producer KV-cache leases while decode-side
+      MooncakeConnectorV2 renews producer KV-cache leases while decode-side
       requests wait for scheduling or complete KV transfers after scheduler
       admission, retaining KV during long waits while renewal succeeds.
   - category: config
     text: >-
-      Set kv_connector_extra_config.enable_heartbeat=true on both P and D to
-      enable heartbeat leases with kv_lease_duration (default 120 seconds).
-      Heartbeats default to disabled, preserving VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT
-      and the original completion flow; kv_lease_duration is ignored when disabled.
-      Configure the same duration on P and D and enable P before D.
-      MooncakeConnectorV1 keeps its existing timeout behavior.
+      MooncakeConnectorV2 always uses heartbeat leases configured by
+      kv_connector_extra_config.kv_lease_duration (default 120 seconds), replacing
+      VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT. The default heartbeat interval is
+      20 seconds and the renewal window is 80 seconds. Configure the same duration
+      on P and D and upgrade P before D. MooncakeConnectorV1 keeps its existing
+      timeout behavior.
