@@ -23,7 +23,6 @@ import torch
 import torch_npu
 import zmq
 from mooncake.engine import TransferEngine  # type: ignore
-from vllm import envs
 from vllm.config import VllmConfig
 from vllm.distributed import get_pcp_group
 from vllm.distributed.kv_transfer.kv_connector.utils import BlockIds
@@ -58,9 +57,12 @@ from vllm.v1.kv_cache_interface import (
 from vllm.v1.request import RequestStatus
 
 from vllm_ascend.ascend_config import get_ascend_config, init_ascend_config
-from vllm_ascend.core.kv_cache_interface import (
-    AscendSFAIndexerCacheSpec,
-    AscendSlidingWindowMLASpec,
+from vllm_ascend.core.kv_cache_interface import AscendSFAIndexerCacheSpec, AscendSlidingWindowMLASpec
+from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake_heartbeat import (
+    HEARTBEAT_MSG,
+    KVCacheTaskTracker,
+    MooncakeLeaseScheduler,
+    get_kv_lease_duration,
 )
 from vllm_ascend.distributed.kv_transfer.utils.mooncake_transfer_engine import global_te
 from vllm_ascend.distributed.kv_transfer.utils.utils import (
@@ -179,90 +181,6 @@ class SizedDict(OrderedDict):
             return value
 
 
-class KVCacheTaskTracker:
-    def __init__(self):
-        super().__init__()
-
-        self.done_task_lock = threading.Lock()
-        self.finished_requests: set[str] = set()
-        # Only used in prefill node. Tracks requests whose kv blocks freeing is
-        # intentionally delayed. Each entry is a tuple of (request_id,
-        # timestamp). If a request remains in this queue for too long, it will
-        # be force-freed.
-        self.delayed_free_requests: OrderedDict[str, float] = OrderedDict()
-        self.reqs_to_process: set[str] = set()
-
-    def add_req_to_process(self, request_id: str):
-        self.reqs_to_process.add(request_id)
-
-    def add_not_transfer_request(self, request_id: str):
-        with self.done_task_lock:
-            self.finished_requests.add(request_id)
-            self.reqs_to_process.discard(request_id)
-
-    def update_done_task_count(self, request_id: str, *, report_completion: bool = True):
-        with self.done_task_lock:
-            if not report_completion:
-                # A notification-only request never entered WAITING_FOR_REMOTE_KVS.
-                self.reqs_to_process.discard(request_id)
-                self.delayed_free_requests.pop(request_id, None)
-                return
-            if request_id in self.reqs_to_process:
-                self.finished_requests.add(request_id)
-                self.reqs_to_process.discard(request_id)
-                self.delayed_free_requests.pop(request_id, None)
-            else:
-                logger.warning(
-                    "MooncakeConnector finish req not in reqs to process. "
-                    "request_id=%s. "
-                    "Possible cause: Request was already completed or not properly tracked. "
-                    "Check: Verify request lifecycle and tracking logic.",
-                    request_id,
-                )
-
-    def get_and_clear_finished_requests(self) -> set[str]:
-        """
-        Get and clear the requests that have been completed.
-        Returns:
-            A set of request IDs that have been completed.
-        """
-        with self.done_task_lock:
-            finished_requests = self.finished_requests.copy()
-            expired_requests = self._retrieve_expired_requests()
-            finished_requests.update(expired_requests)
-            self.finished_requests.clear()
-        return finished_requests
-
-    def add_delayed_request(self, request_id: str, delay_start_time: float):
-        """Add a delayed free request."""
-        with self.done_task_lock:
-            if request_id in self.reqs_to_process:
-                self.delayed_free_requests[request_id] = delay_start_time
-
-    def _retrieve_expired_requests(self):
-        """Retrieve all expired delayed requests."""
-        expired_requests: set[str] = set()
-        # Free delayed requests if they exceed the timeout
-        current_time = time.time()
-        while self.delayed_free_requests:
-            request_id = next(iter(self.delayed_free_requests))
-            delay_start_time = self.delayed_free_requests[request_id]
-            if current_time - delay_start_time > envs.VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT:
-                self.delayed_free_requests.popitem(last=False)
-                self.reqs_to_process.discard(request_id)
-                expired_requests.add(request_id)
-                logger.error(
-                    "Force freed expired request: %s. "
-                    "Reason: Request exceeded timeout threshold (%s seconds). "
-                    "Action: Resources have been forcibly released to prevent memory leak.",
-                    request_id,
-                    envs.VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT,
-                )
-            else:
-                break
-        return expired_requests
-
-
 class KVCacheSendingThread(threading.Thread):
     def __init__(
         self,
@@ -293,7 +211,7 @@ class KVCacheSendingThread(threading.Thread):
         self.pcp_rank = pcp_rank
         self.port_send_num: dict[str, int] = {}
 
-        self.task_tracker = KVCacheTaskTracker()
+        self.task_tracker = KVCacheTaskTracker(get_kv_lease_duration(vllm_config.kv_transfer_config))
 
     def get_and_clear_finished_requests(self) -> set[str]:
         """
@@ -306,8 +224,8 @@ class KVCacheSendingThread(threading.Thread):
     def add_not_transfer_request(self, request_id: str):
         self.task_tracker.add_not_transfer_request(request_id)
 
-    def add_delayed_request(self, request_id: str, delay_start_time: float):
-        return self.task_tracker.add_delayed_request(request_id, delay_start_time)
+    def add_delayed_request(self, request_id: str):
+        return self.task_tracker.add_delayed_request(request_id)
 
     def run(self):
         """Run the thread to handle KV cache transfer requests."""
@@ -380,6 +298,11 @@ class KVCacheSendingThread(threading.Thread):
                 msg = decoder.decode(payload[0])
                 if msg[0] == GET_META_MSG:
                     sock.send_multipart((identity, b"", encoded_data))
+                elif msg[0] == HEARTBEAT_MSG and len(msg) == 2:
+                    if not isinstance(msg[1], (list, tuple)) or not all(isinstance(req_id, str) for req_id in msg[1]):
+                        raise ValueError("Invalid Mooncake heartbeat request IDs")
+                    self.task_tracker.renew_requests(msg[1])
+                    sock.send_multipart((identity, b"", b"ACK"))
                 elif msg[0] == DONE_RECVING_MSG:
                     logger.debug("Got DONE_RECVING_MSG for request %s", msg[1])
                     request_id = msg[1]
@@ -1657,6 +1580,14 @@ class MooncakeConnector(KVConnectorBase_V1, SupportsHMA):
         assert self.connector_scheduler is not None
         self.connector_scheduler.on_new_request(request)
 
+    def update_connector_output(self, connector_output) -> None:
+        assert self.connector_scheduler is not None
+        self.connector_scheduler.update_connector_output(connector_output)
+
+    def shutdown(self) -> None:
+        if self.connector_scheduler is not None:
+            self.connector_scheduler.shutdown()
+
     def get_num_new_matched_tokens(self, request: "Request", num_computed_tokens: int) -> tuple[int, bool]:
         assert self.connector_scheduler is not None
         return self.connector_scheduler.get_num_new_matched_tokens(request, num_computed_tokens)
@@ -1760,7 +1691,7 @@ class MooncakeConnector(KVConnectorBase_V1, SupportsHMA):
         self.connector_scheduler.set_xfer_handshake_metadata_from_workers(metadata)
 
 
-class MooncakeConnectorScheduler:
+class MooncakeConnectorScheduler(MooncakeLeaseScheduler):
     """Implementation of Scheduler side methods"""
 
     def __init__(self, vllm_config: VllmConfig, engine_id: str, kv_cache_config: KVCacheConfig):
@@ -1802,6 +1733,7 @@ class MooncakeConnectorScheduler:
 
         # master-slave meta information for cross-nodes
         self.multi_nodes_meta_mapping: dict[str, dict[str, Any]] = {}
+        self._init_kv_leases()
         self.kv_cache_groups = kv_cache_config.kv_cache_groups
         self.use_compress = self._model_uses_compress()
         self.group_transfer_info = [self._get_group_transfer_info(group) for group in kv_cache_config.kv_cache_groups]
@@ -1942,6 +1874,7 @@ class MooncakeConnectorScheduler:
         params = request.kv_transfer_params
         if params is not None and params.get("do_remote_decode") and self.need_truncate:
             self._truncate_request_for_prefill(request)
+        super().on_new_request(request)
 
     def get_num_new_matched_tokens(self, request: "Request", num_computed_tokens: int) -> tuple[int, bool]:
         """
@@ -1991,6 +1924,8 @@ class MooncakeConnectorScheduler:
         if params is not None and params.get("do_remote_prefill"):
             if params.get("remote_block_ids"):
                 if all(p in params for p in ("remote_engine_id", "remote_host", "remote_port", "remote_request_id")):
+                    if num_external_tokens == 0:
+                        self._stop_renewing(request.request_id)
                     local_block_ids = blocks.get_unhashed_block_ids_all_groups() if num_external_tokens > 0 else []
                     local_full_block_ids = blocks.get_block_ids() if num_external_tokens > 0 else tuple()
                     # Get unhashed blocks to pull from remote.
@@ -2061,6 +1996,8 @@ class MooncakeConnectorScheduler:
         # the data transfer for empty block IDs but still sends the completion
         # signal to the P node, allowing it to release the stranded KV blocks.
         if params.get("do_remote_prefill") or request.request_id in self._reqs_need_recv:
+            self._stop_renewing(request.request_id)
+            self._reqs_in_batch.add(request.request_id)
             empty_block_ids: BlockIds = tuple([] for _ in self.kv_cache_groups)
             self._reqs_need_recv[request.request_id] = (
                 request,
@@ -2081,7 +2018,7 @@ class MooncakeConnectorScheduler:
         delay_free_blocks = sum(computed_block_lens) > 0
         if delay_free_blocks:
             logger.info("Delaying free of %d blocks for request %s", sum(computed_block_lens), request.request_id)
-            self._reqs_need_send[request.request_id] = time.time()
+            self._reqs_need_send[request.request_id] = time.monotonic()
 
         return delay_free_blocks, dict(
             do_remote_prefill=True,
@@ -2091,6 +2028,7 @@ class MooncakeConnectorScheduler:
             remote_request_id=request.request_id,
             remote_host=self.side_channel_host,
             remote_port=self.side_channel_port,
+            **self._lease_transfer_params(),
             remote_pcp_size=self.pcp_size,
             remote_dcp_size=self.dcp_size,
             remote_ptp_size=self.tp_size,
@@ -4150,18 +4088,18 @@ class MooncakeConnectorWorker:
                     )
 
         if self.kv_send_thread is not None and self.dcp_size == 1:
-            for req_id, delay_start_time in metadata.requests_to_send.items():
+            for req_id in metadata.requests_to_send:
                 # Unused PCP replicas report completion locally; only transfer
                 # sources wait for the D-side completion signal.
                 selected_pcp_rank = self._get_selected_pcp_rank(req_id, self.pcp_size)
                 if self.pcp_rank == selected_pcp_rank and self.tp_rank in self._prefill_get_remote_rank(req_id):
-                    self.kv_send_thread.add_delayed_request(req_id, delay_start_time)
+                    self.kv_send_thread.add_delayed_request(req_id)
                 else:
                     self.kv_send_thread.add_not_transfer_request(req_id)
 
         if self.kv_send_thread is not None and self.dcp_size > 1:
-            for req_id, delay_start_time in metadata.requests_to_send.items():
-                self.kv_send_thread.add_delayed_request(req_id, delay_start_time)
+            for req_id in metadata.requests_to_send:
+                self.kv_send_thread.add_delayed_request(req_id)
 
     def _get_tp_num_need_pulls(self, prefill_tp_size: int | None) -> int:
         if prefill_tp_size is None:

@@ -72,7 +72,7 @@ MOONCAKE_STORAGE_REGISTRATION_FIX = pytest.mark.skip(
 @pytest.fixture(autouse=True)
 def _parallel_groups(monkeypatch):
     """Scope fake distributed topology to each case; never patch at collection."""
-    module = sys.modules[KVCacheTaskTracker.__module__]
+    module = sys.modules[MooncakeConnectorWorker.__module__]
     # Worker construction writes this environment variable. Track its original
     # state even in legacy constructor tests, not only in the wire fixture.
     monkeypatch.setenv("ASCEND_TRANSFER_TIMEOUT", os.environ.get("ASCEND_TRANSFER_TIMEOUT", "30"))
@@ -2331,7 +2331,7 @@ def test_tracker_publishes_completed_requests_once(request_ids):
     assert tracker.get_and_clear_finished_requests() == set(request_ids)
     for req_id in request_ids:
         tracker.update_done_task_count(req_id)
-        tracker.add_delayed_request(req_id, 0)
+        tracker.add_delayed_request(req_id)
     assert tracker.get_and_clear_finished_requests() == set()
 
 
@@ -2394,36 +2394,33 @@ def test_tracker_completion_is_consumed_by_only_one_reader():
     assert tracker.get_and_clear_finished_requests() == set()
 
 
-@pytest.mark.parametrize("elapsed,expired", [(9.999, False), (10.0, False), (10.001, True)])
+@pytest.mark.parametrize("elapsed,expired", [(9.999, False), (10.0, True), (10.001, True)])
 def test_tracker_timeout_boundary(elapsed, expired):
-    tracker = KVCacheTaskTracker()
+    tracker = KVCacheTaskTracker(10)
     tracker.add_req_to_process("a")
-    tracker.add_delayed_request("a", 100)
     module = sys.modules[KVCacheTaskTracker.__module__]
-    with (
-        patch.object(module.time, "time", return_value=100 + elapsed),
-        patch.object(module.envs, "VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT", 10),
-    ):
+    with patch.object(module.time, "monotonic", return_value=100) as clock:
+        tracker.add_delayed_request("a")
+        clock.return_value = 100 + elapsed
         assert tracker.get_and_clear_finished_requests() == ({"a"} if expired else set())
 
 
 def test_tracker_late_events_do_not_republish_or_pollute_next_request():
     """HIST-008/015/022: expire A, late A events, then finish B normally."""
-    tracker = KVCacheTaskTracker()
+    tracker = KVCacheTaskTracker(10)
     module = sys.modules[KVCacheTaskTracker.__module__]
-    with (
-        patch.object(module.time, "time", return_value=111) as clock,
-        patch.object(module.envs, "VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT", 10),
-    ):
+    with patch.object(module.time, "monotonic", return_value=100) as clock:
         tracker.add_req_to_process("a")
-        tracker.add_delayed_request("a", 100)
+        tracker.add_delayed_request("a")
+        clock.return_value = 110
         tracker.add_req_to_process("b")
-        tracker.add_delayed_request("b", 110)
+        tracker.add_delayed_request("b")
+        clock.return_value = 111
         assert tracker.get_and_clear_finished_requests() == {"a"}
         tracker.update_done_task_count("a")
-        tracker.add_delayed_request("a", 111)
+        tracker.add_delayed_request("a")
         tracker.update_done_task_count("unknown")
-        tracker.add_delayed_request("unknown", 0)
+        tracker.add_delayed_request("unknown")
         assert tracker.get_and_clear_finished_requests() == set()
         tracker.update_done_task_count("b")
         assert tracker.get_and_clear_finished_requests() == {"b"}
