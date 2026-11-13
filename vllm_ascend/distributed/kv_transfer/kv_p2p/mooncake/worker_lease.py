@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM-Ascend project
-"""Worker lease tracking and scheduler hooks for Mooncake V1 and Hybrid."""
+"""Worker-owned leases for V1/Hybrid, using the shared heartbeat sender."""
 
 import threading
 import time

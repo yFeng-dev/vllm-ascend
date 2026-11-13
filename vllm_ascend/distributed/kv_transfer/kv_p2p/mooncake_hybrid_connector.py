@@ -58,7 +58,7 @@ from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.utils import (
     as_kv_cache_tensors,
     collect_configured_register_regions,
 )
-from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake_heartbeat import (
+from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.worker_lease import (
     KVCacheTaskTracker,
     MooncakeLeaseScheduler,
     get_kv_lease_duration,

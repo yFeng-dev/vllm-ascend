@@ -15,7 +15,7 @@ from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.heartbeat import (
     HEARTBEAT_MSG,
     MooncakeHeartbeatThread,
 )
-from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake_heartbeat import (
+from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.worker_lease import (
     KVCacheTaskTracker,
     MooncakeLeaseScheduler,
     get_kv_lease_duration,
