@@ -6,43 +6,6 @@ vLLM-Ascend now supports prefill-decode (PD) disaggregation with EP (Expert Para
 
 Take the DeepSeek-r1-w8a8 model as an example, use 4 Atlas 800T A3 servers to deploy the "2P1D" architecture. Assume the IP of the prefiller server is 192.0.0.1 (prefill 1) and 192.0.0.2 (prefill 2), and the decoder servers are 192.0.0.3 (decoder 1) and 192.0.0.4 (decoder 2). On each server, use 8 NPUs and 16 chips to deploy one service instance.
 
-### V1 and Hybrid KV leases
-
-`MooncakeConnectorV1` and `MooncakeHybridConnector` retain producer KV with
-renewable leases. Configure the same `kv_lease_duration` on P and D in
-`kv_connector_extra_config`; it must be an integer of at least 6 seconds:
-
-```json
-{"kv_connector_extra_config": {"kv_lease_duration": 120}}
-```
-
-The default initial lease is 120 seconds. D sends batched heartbeats every
-`duration // 6` seconds (20 by default), independently of scheduler steps and
-model execution. Each P worker uses its own monotonic clock and extends its
-deadline to the later of the current deadline and `duration * 2 // 3` seconds
-after receiving a heartbeat (80 by default). Late heartbeats cannot revive
-expired leases. The old `VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT` setting no longer
-controls these connectors' KV retention.
-
-Renewal starts at scheduler admission, before KV allocation, and stops after
-receive completion aggregated across D workers. Requests still in EngineCore's
-input queue are not renewed. A full local prefix-cache hit stops renewal at
-allocation because no KV read is needed. Cancellation before allocation stops renewal and
-queues an empty receive to send the existing worker DONE notifications. P keeps
-its existing worker completion aggregation and also releases KV after lease
-expiry if D disappears.
-
-P advertises `remote_kv_lease_duration` and `remote_kv_lease_endpoints`, including
-all worker control endpoints for the request's DP group. These use the existing
-worker ports and include TP, PP, PCP and cross-node host mappings. Upgrade P
-before D and ensure proxies preserve both fields. D rejects missing or mismatched
-durations and malformed endpoint lists at request admission; such errors can
-terminate EngineCore and require correcting the configuration and restarting D.
-
-A heartbeat ACK confirms control-message processing, not per-request lease
-validity. These leases do not add stale-read fencing: a delayed D read after KV
-expiry and block reuse can still succeed at the transport layer.
-
 ## Verify Multi-Node Communication Environment
 
 ### Physical Layer Requirements

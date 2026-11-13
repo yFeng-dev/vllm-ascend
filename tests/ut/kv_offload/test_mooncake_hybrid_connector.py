@@ -888,11 +888,6 @@ class TestMooncakeHybridConnectorScheduler(unittest.TestCase):
         scheduler.side_channel_port = 12345
         scheduler.tp_size = 1
         scheduler.pcp_size = 1
-        scheduler.vllm_config = types.SimpleNamespace(
-            parallel_config=types.SimpleNamespace(pipeline_parallel_size=1),
-            kv_transfer_config=types.SimpleNamespace(kv_port=12345, get_from_extra_config=lambda key, default: default),
-        )
-        scheduler._init_kv_leases()
         scheduler.multi_nodes_meta_mapping = {}
         return scheduler
 
