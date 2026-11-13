@@ -53,12 +53,12 @@ from vllm.v1.request import RequestStatus
 
 from vllm_ascend.ascend_config import get_ascend_config, init_ascend_config
 from vllm_ascend.core.kv_cache_interface import is_circular_kv_cache_spec
+from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.heartbeat import HEARTBEAT_MSG
 from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.utils import (
     as_kv_cache_tensors,
     collect_configured_register_regions,
 )
 from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake_heartbeat import (
-    HEARTBEAT_MSG,
     KVCacheTaskTracker,
     MooncakeLeaseScheduler,
     get_kv_lease_duration,

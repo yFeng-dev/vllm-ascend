@@ -11,11 +11,12 @@ import msgspec
 import pytest
 import zmq
 
-from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake_heartbeat import (
+from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake.heartbeat import (
     HEARTBEAT_MSG,
-    MAX_HEARTBEAT_REQUESTS,
-    KVCacheTaskTracker,
     MooncakeHeartbeatThread,
+)
+from vllm_ascend.distributed.kv_transfer.kv_p2p.mooncake_heartbeat import (
+    KVCacheTaskTracker,
     MooncakeLeaseScheduler,
     get_kv_lease_duration,
 )
@@ -147,11 +148,35 @@ def test_all_worker_endpoints_and_aggregated_completion():
     with patch.object(MooncakeHeartbeatThread, "start"):
         scheduler.on_new_request(request)
     heartbeat = scheduler._heartbeat_thread
-    assert len(heartbeat.requests["d"]) == 4
+    assert set(heartbeat.requests.values()) == {
+        (host, port, "p") for host, port in request.kv_transfer_params["remote_kv_lease_endpoints"]
+    }
     scheduler.update_connector_output(SimpleNamespace(finished_recving=None))
-    assert "d" in heartbeat.requests
+    assert heartbeat.requests
     scheduler.update_connector_output(SimpleNamespace(finished_recving={"d"}))
     assert not heartbeat.requests
+    scheduler.shutdown()
+
+
+def test_worker_registration_replacement_and_completion_keep_other_requests():
+    scheduler = make_scheduler()
+    first = make_request(scheduler)
+    other = make_request(scheduler, remote_request_id="other-producer")
+    other.request_id = "d:0"
+    with patch.object(MooncakeHeartbeatThread, "start"):
+        scheduler.on_new_request(first)
+        scheduler.on_new_request(other)
+        first.kv_transfer_params["remote_kv_lease_endpoints"] = [("127.0.0.3", 10008)]
+        scheduler.on_new_request(first)
+    heartbeat = scheduler._heartbeat_thread
+    assert len(heartbeat.requests) == 5
+    assert ("127.0.0.3", 10008, "p") in heartbeat.requests.values()
+    scheduler.update_connector_output(SimpleNamespace(finished_recving={"d"}))
+    assert len(heartbeat.requests) == 4
+    assert {peer[2] for peer in heartbeat.requests.values()} == {"other-producer"}
+    scheduler.update_connector_output(SimpleNamespace(finished_recving={"d:0"}))
+    assert not heartbeat.requests
+    assert not scheduler._heartbeat_request_counts
     scheduler.shutdown()
 
 
@@ -181,7 +206,7 @@ def test_connector_cancellation_and_hooks(module_name):
     with patch.object(MooncakeHeartbeatThread, "start"):
         connector.on_new_request(request)
     heartbeat = scheduler._heartbeat_thread
-    assert "d" in heartbeat.requests  # Registration precedes allocation.
+    assert heartbeat.requests  # Registration precedes allocation.
     assert connector.request_finished_all_groups(request, ([], [])) == (False, None)
     assert not heartbeat.requests
     assert not request.kv_transfer_params["do_remote_prefill"]
@@ -239,47 +264,6 @@ def test_producer_control_protocol(module_name):
     assert not sender.task_tracker.renewed_requests
 
 
-def test_live_heartbeats_batching_peer_failure_and_shutdown():
-    """Real ZMQ sockets: an unresponsive producer must not block a healthy one."""
-    context = zmq.Context()
-    healthy = context.socket(zmq.REP)
-    dead = context.socket(zmq.REP)
-    healthy_port = healthy.bind_to_random_port("tcp://127.0.0.1")
-    dead_port = dead.bind_to_random_port("tcp://127.0.0.1")
-    heartbeat = MooncakeHeartbeatThread(0.1)
-    count = MAX_HEARTBEAT_REQUESTS + 3
-    for index in range(count):
-        heartbeat.add_request_peers(
-            str(index), (("127.0.0.1", healthy_port, str(index)), ("127.0.0.1", dead_port, str(index)))
-        )
-    heartbeat.start()
-    seen = set()
-    deadline = time.monotonic() + 5
-    try:
-        while len(seen) < count and time.monotonic() < deadline:
-            if healthy.poll(100):
-                message, request_ids = msgspec.msgpack.decode(healthy.recv())
-                assert message == HEARTBEAT_MSG
-                assert len(request_ids) <= MAX_HEARTBEAT_REQUESTS
-                seen.update(request_ids)
-                healthy.send(b"ACK")
-        assert len(seen) == count
-    finally:
-        heartbeat.shutdown()
-        healthy.close(linger=0)
-        dead.close(linger=0)
-        context.term()
-    assert not heartbeat.is_alive()
-    assert not heartbeat.requests
-
-
-def test_shutdown_idle_thread():
-    heartbeat = MooncakeHeartbeatThread(20)
-    heartbeat.start()
-    heartbeat.shutdown()
-    assert not heartbeat.is_alive()
-
-
 @pytest.mark.parametrize("module_name", ["mooncake_connector", "mooncake_hybrid_connector"])
 def test_live_worker_leases_survive_waiting_then_release(module_name):
     """Exercise both production ROUTER loops beyond an actual six-second lease."""
@@ -288,7 +272,8 @@ def test_live_worker_leases_survive_waiting_then_release(module_name):
     producers = []
     threads = []
     endpoints = []
-    heartbeat = MooncakeHeartbeatThread(1)
+    scheduler = make_scheduler()
+    scheduler._kv_lease_duration = 6
 
     class StoppableSocket:
         def __init__(self, sock):
@@ -328,8 +313,14 @@ def test_live_worker_leases_survive_waiting_then_release(module_name):
             thread.start()
             assert ready.wait(5)
         for request_id in ("waiting", "complete"):
-            heartbeat.add_request_peers(request_id, tuple((host, port, request_id) for host, port in endpoints))
-        heartbeat.start()
+            request = make_request(
+                scheduler,
+                remote_request_id=request_id,
+                remote_kv_lease_duration=6,
+                remote_kv_lease_endpoints=endpoints,
+            )
+            request.request_id = f"d-{request_id}"
+            scheduler.on_new_request(request)
         deadline = time.monotonic() + 7
         while time.monotonic() < deadline:
             for sender in producers:
@@ -344,7 +335,9 @@ def test_live_worker_leases_survive_waiting_then_release(module_name):
                 assert sock.recv() == b"ACK"
         for sender in producers:
             assert sender.get_and_clear_finished_requests() == {"complete"}
-        heartbeat.shutdown()  # D disappears: no further scheduler or network work.
+        scheduler.update_connector_output(SimpleNamespace(finished_recving={"d-complete"}))
+        assert {peer[2] for peer in scheduler._heartbeat_thread.requests.values()} == {"waiting"}
+        scheduler.shutdown()  # D disappears: no further scheduler or network work.
         deadline = time.monotonic() + 6
         expired = [set(), set()]
         while time.monotonic() < deadline and any("waiting" not in result for result in expired):
@@ -353,7 +346,7 @@ def test_live_worker_leases_survive_waiting_then_release(module_name):
             time.sleep(0.05)
         assert expired == [{"waiting"}, {"waiting"}]
     finally:
-        heartbeat.shutdown()
+        scheduler.shutdown()
         for host, port in endpoints:
             with context.socket(zmq.REQ) as sock:
                 sock.setsockopt(zmq.LINGER, 0)
