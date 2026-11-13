@@ -1,0 +1,6 @@
+pr: 7
+entries:
+  - category: feature
+    text: Added renewable KV leases to MooncakeConnectorV1 and MooncakeHybridConnector so active decode requests can retain producer KV while waiting or executing model steps.
+  - category: breaking
+    text: Mooncake V1 and Hybrid now require matching integer kv_lease_duration settings on P and D (default 120 seconds, minimum 6) and lease metadata preserved by proxies. VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT no longer controls their KV retention; upgrade P before D.
